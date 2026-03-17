@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { 
   Users, Music, Share2, Activity, LayoutDashboard, 
-  Trash2, Eye, Clock, UserPlus 
+  Trash2, Eye
 } from 'lucide-react';
 
 // ⚠️ ใส่ Token แอดมินตรงนี้
@@ -15,6 +15,7 @@ export default function App() {
   const [users, setUsers] = useState<any[]>([]);
   const [songs, setSongs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSong, setSelectedSong] = useState<any>(null);
 
   // ดึงข้อมูลเมื่อโหลดหน้าจอ หรือเปลี่ยน Tab
   useEffect(() => {
@@ -58,18 +59,18 @@ export default function App() {
 
   // --- ส่วนเมนูด้านซ้าย (Sidebar) ---
   const Sidebar = () => (
-    <div className="w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">
+    <div className="w-64 bg-[#EBE6FF] border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">
       <div className="p-6 flex items-center gap-3 border-b border-gray-100">
-        <img src="/logo.png" alt="MyMood Logo" className="w-8 h-8"/>
+        <img src="../src/assets/Logo.png" alt="MyMood Logo" className=" h-12"/>
       </div>
       <div className="p-4 flex flex-col gap-2">
-        <button onClick={() => setActiveTab('dashboard')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}>
+        <button onClick={() => setActiveTab('dashboard')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'dashboard' ? 'bg-gray-50 text-purple-600 font-semibold' : 'text-gray-500 hover:bg-[#F5F3FF]'}`}>
           <LayoutDashboard className="w-5 h-5" /> ภาพรวมสถิติ
         </button>
-        <button onClick={() => setActiveTab('users')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'users' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}>
+        <button onClick={() => setActiveTab('users')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'users' ? 'bg-gray-50 text-purple-600 font-semibold' : 'text-gray-500 hover:bg-[#F5F3FF]'}`}>
           <Users className="w-5 h-5" /> บัญชีผู้ใช้
         </button>
-        <button onClick={() => setActiveTab('songs')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'songs' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}>
+        <button onClick={() => setActiveTab('songs')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'songs' ? 'bg-gray-50 text-purple-600 font-semibold' : 'text-gray-500 hover:bg-[#F5F3FF] '}`}>
           <Music className="w-5 h-5" /> จัดการเพลง
         </button>
       </div>
@@ -77,7 +78,7 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-[#F5F3FF] flex">
       <Sidebar />
       
       {/* พื้นที่เนื้อหาด้านขวา */}
@@ -100,8 +101,8 @@ export default function App() {
                   </div>
                   <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                     <div className="flex items-center gap-4 mb-4">
-                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600"><UserPlus /></div>
-                      <div><p className="text-sm text-gray-500">สมัครใหม่วันนี้</p><p className="text-2xl font-bold">1</p></div> {/* จำลอง UI */}
+                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600"><Share2 /></div>
+                      <div><p className="text-sm text-gray-500">แชร์ทั้งหมด</p><p className="text-2xl font-bold">{stats?.total_shares || 0}</p></div>
                     </div>
                   </div>
                   <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -112,8 +113,8 @@ export default function App() {
                   </div>
                   <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                     <div className="flex items-center gap-4 mb-4">
-                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-600"><Clock /></div>
-                      <div><p className="text-sm text-gray-500">ออนไลน์ขณะนี้</p><p className="text-2xl font-bold">2</p></div> {/* จำลอง UI */}
+                      <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-orange-600"><Activity /></div>
+                      <div><p className="text-sm text-gray-500">สถานะระบบ</p><p className="text-2xl font-bold text-green-500">ปกติ</p></div>
                     </div>
                   </div>
                 </div>
@@ -186,7 +187,7 @@ export default function App() {
                             <p className="text-sm text-gray-600">@{song.uploader?.handle || 'ไม่ทราบ'}</p>
                           </td>
                           <td className="p-4 flex gap-2 justify-center">
-                            <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="ดูรายละเอียด">
+                            <button onClick={() => setSelectedSong(song)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="ดูรายละเอียด">
                               <Eye className="w-5 h-5" />
                             </button>
                             <button onClick={() => handleDeleteSong(song.id, song.title)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="ลบเพลงนี้">
@@ -203,6 +204,54 @@ export default function App() {
           </>
         )}
       </div>
+
+      {/* Modal สำหรับดูรายละเอียดและฟังเพลง */}
+      {selectedSong && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in" onClick={() => setSelectedSong(null)}>
+          <div className="bg-white rounded-2xl p-6 shadow-xl w-full max-w-md m-4 relative flex flex-col items-center" onClick={e => e.stopPropagation()}>
+            <button 
+              onClick={() => setSelectedSong(null)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <Trash2 className="w-5 h-5 opacity-0" />
+              <span className="text-2xl font-bold absolute top-0 right-0 leading-none">&times;</span>
+            </button>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 w-full text-center border-b border-gray-100 pb-4">รายละเอียดเพลง</h2>
+            
+            <div className="w-48 h-48 bg-gray-200 rounded-2xl overflow-hidden shadow-lg mb-6 ring-4 ring-gray-50">
+              {selectedSong.cover_image_url ? (
+                <img src={selectedSong.cover_image_url} alt="Cover" className="w-full h-full object-cover"/>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  <Music className="w-16 h-16"/>
+                </div>
+              )}
+            </div>
+            
+            <div className="w-full text-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-900 mb-1 line-clamp-2">{selectedSong.title}</h3>
+              <p className="text-lg text-gray-500 mb-2">{selectedSong.artist}</p>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 text-sm font-medium rounded-full">
+                <Users className="w-4 h-4"/>
+                @{selectedSong.uploader?.handle || 'ไม่ทราบ'}
+              </span>
+            </div>
+
+            {selectedSong.audio_file_url ? (
+              <div className="w-full bg-gray-50 rounded-xl p-4 border border-gray-100">
+                 <audio 
+                   controls 
+                   src={selectedSong.audio_file_url} 
+                   className="w-full outline-none h-12"
+                   autoPlay
+                 />
+              </div>
+            ) : (
+              <div className="w-full text-center text-red-500 py-4 bg-red-50 rounded-xl border border-red-100 font-medium">ไม่พบไฟล์เสียงเชื่อมต่อ</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
