@@ -7,12 +7,14 @@ import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import inboxRoutes from './routes/inboxRoutes';
 import adminRoutes from './routes/adminRoutes';
-
+import uploadRoutes from './routes/uploadRoutes';
+import likeRoutes from './routes/likeRoutes';
+import playRoutes from './routes/playRoutes';
+import friendRoutes from './routes/friendRoutes';
 
 dotenv.config();
 
 const app = express();
-
 const port = process.env.PORT || 8080;
 
 // Middlewares
@@ -21,24 +23,22 @@ app.use(express.json()); // รับข้อมูลแบบ JSON
 
 // Routes
 app.use('/api/songs', songRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/inbox', inboxRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/likes', likeRoutes);
+app.use('/api/play', playRoutes);
+app.use('/api/friends', friendRoutes);
 
 // Health Check
 app.get('/', (req, res) => {
-  res.send('My Mood API is running! 🚀');
+  res.send('My Mood API is running! 🚀 (Serverless/Realtime Mode)');
 });
 
-// ตรงส่วน Routes เพิ่มบรรทัดนี้ลงไปใต้ app.use('/api/songs', songRoutes);
-app.use('/api/ai', aiRoutes);
-
-// ตรงส่วน Routes เพิ่มบรรทัดนี้ลงไป (ต่อจาก aiRoutes ก็ได้ครับ)
-app.use('/api/auth', authRoutes);
-
-app.use('/api/users', userRoutes);
-
-app.use('/api/inbox', inboxRoutes);
-
-app.use('/api/admin', adminRoutes);
-// เริ่ม Server
+// เริ่ม Server ปกติเลยครับ (ไม่ต้องใช้ http.createServer แล้ว)
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });

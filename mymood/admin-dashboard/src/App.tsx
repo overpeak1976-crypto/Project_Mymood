@@ -60,8 +60,7 @@ export default function App() {
   const Sidebar = () => (
     <div className="w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">
       <div className="p-6 flex items-center gap-3 border-b border-gray-100">
-        <Activity className="w-8 h-8 text-blue-600" />
-        <h1 className="text-xl font-bold text-gray-800">My Mood</h1>
+        <img src="/logo.png" alt="MyMood Logo" className="w-8 h-8"/>
       </div>
       <div className="p-4 flex flex-col gap-2">
         <button onClick={() => setActiveTab('dashboard')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'dashboard' ? 'bg-blue-50 text-blue-600 font-semibold' : 'text-gray-500 hover:bg-gray-50'}`}>

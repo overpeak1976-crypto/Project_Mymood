@@ -24,7 +24,7 @@ export const adminController = {
         total_shares: shareCount || 0
       });
     } catch (error: any) {
-      console.error("🚨 Admin Stats Error:", error); // <--- เพิ่มบรรทัดนี้ให้มันปริ้นท์บอกเรา
+      console.error("🚨 Admin Stats Error:", error); 
       res.status(500).json({ error: error.message });
     }
   },
