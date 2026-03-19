@@ -28,10 +28,10 @@ export default function LoginScreen() {
     } else {
       const { data: userData } = await supabase.auth.getUser();
       if (userData.user) {
-         await supabase.from('users').update({ 
+        await supabase.from('users').update({ 
             is_online: true, 
             last_active: new Date() 
-         }).eq('id', userData.user.id);
+        }).eq('id', userData.user.id);
       }
       Alert.alert("สำเร็จ!", "เข้าสู่ระบบเรียบร้อยแล้ว");
       router.replace("/");

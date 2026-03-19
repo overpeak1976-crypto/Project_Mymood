@@ -27,7 +27,7 @@ export default function RootLayout() {
           }
         } else {
           if (segments[1] !== "complete-profile") {
-             router.replace("/(auth)/complete-profile" as any);
+            router.replace("/(auth)/complete-profile" as any);
           }
         }
 
@@ -39,13 +39,13 @@ export default function RootLayout() {
     };
 
     supabase.auth.getSession().then(({ data }) => {
-       checkSession(data.session);
+      checkSession(data.session);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === "SIGNED_IN") {
-           checkSession(session);
+          checkSession(session);
         } else if (event === "SIGNED_OUT") {
           router.replace("/(auth)" as any);
         }
