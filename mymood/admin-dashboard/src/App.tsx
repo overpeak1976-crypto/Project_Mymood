@@ -5,7 +5,7 @@ import {
   Trash2, Eye
 } from 'lucide-react';
 
-// ⚠️ ใส่ Token แอดมินตรงนี้
+// ใส่ Token แอดมินตรงนี้
 const ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjQ2ZWE5MTYxLTZjYTAtNGMwZC04OWNlLWE3OGVhMDI2Y2YyMyIsImhhbmRsZSI6Im51Z3VuMjEwNSIsImlhdCI6MTc3MzM1MzYyMCwiZXhwIjoxNzczOTU4NDIwfQ.gqnV2geRmvMsnBJ8aC-7Xhn9oPI47CqYvX7M8zqCOB8";
 const API_URL = "http://localhost:8080/api/admin";
 
