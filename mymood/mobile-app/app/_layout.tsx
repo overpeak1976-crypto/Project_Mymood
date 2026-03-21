@@ -22,8 +22,8 @@ export default function RootLayout() {
         const hasProfile = profile && profile.handle;
 
         if (hasProfile) {
-          if (segments[0] !== "(tabs)") {
-            router.replace("/(tabs)" as any);
+          if (segments[0] !== "(drawer)") {
+            router.replace("/(drawer)" as any);
           }
         } else {
           if (segments[1] !== "complete-profile") {
@@ -70,13 +70,13 @@ export default function RootLayout() {
       authListener.subscription.unsubscribe();
       appStateSubscription.remove();
     };
-  }, [segments]);
+  }, []);
 
   if (!sessionChecked) return null; 
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
     </Stack>
   );
