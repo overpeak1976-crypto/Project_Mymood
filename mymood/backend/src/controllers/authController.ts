@@ -52,3 +52,35 @@ export const syncUser = async (req: Request, res: Response) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// 🌟 เพิ่มฟังก์ชันนี้เข้าไปสำหรับให้แอดมินหรือระบบล็อกอินมาขอ Token ง่ายๆ
+export const login = async (req: Request, res: Response): Promise<void> => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    res.status(400).json({ error: "กรุณากรอกอีเมลและรหัสผ่านให้ครบ" });
+    return;
+  }
+
+  try {
+    // ให้ Backend ของเราไปคุยกับ Supabase แทน
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error || !data.session) {
+      res.status(401).json({ error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
+      return;
+    }
+
+    // ส่ง Token กลับไปให้ Postman ใช้งานได้เลย!
+    res.status(200).json({
+      message: "เข้าสู่ระบบสำเร็จ",
+      access_token: data.session.access_token,
+      user: data.user
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+};

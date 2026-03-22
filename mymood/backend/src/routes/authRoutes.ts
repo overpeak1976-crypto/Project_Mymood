@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { googleSync, syncUser } from '../controllers/authController';
+import { googleSync, login, syncUser} from '../controllers/authController';
 
 const router = Router();
 
@@ -9,4 +9,5 @@ router.post('/google-sync', googleSync);
 // 🌟 Endpoint: POST /api/auth/sync-user (รับข้อมูลหลังสมัครเสร็จ)
 router.post('/sync-user', syncUser);
 
+router.post('/login', login);
 export default router;
