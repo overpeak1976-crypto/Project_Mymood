@@ -21,7 +21,6 @@ const port = process.env.PORT || 8080;
 app.use(cors());
 app.use(express.json()); // รับข้อมูลแบบ JSON
 
-// Routes
 app.use('/api/songs', songRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/auth', authRoutes);
@@ -33,12 +32,11 @@ app.use('/api/likes', likeRoutes);
 app.use('/api/play', playRoutes);
 app.use('/api/friends', friendRoutes);
 
-// Health Check
+
 app.get('/', (req, res) => {
   res.send('My Mood API is running! 🚀 (Serverless/Realtime Mode)');
 });
 
-// เริ่ม Server ปกติเลยครับ (ไม่ต้องใช้ http.createServer แล้ว)
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });

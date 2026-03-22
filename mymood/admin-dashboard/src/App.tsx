@@ -1,15 +1,107 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { 
-  Users, Music, Share2, Activity, LayoutDashboard, 
-  Trash2, Eye
-} from 'lucide-react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Users, Music, Share2, Activity, LayoutDashboard, Trash2, Eye, LogOut } from 'lucide-react';
 
-// ใส่ Token แอดมินตรงนี้
-const ADMIN_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjQ2ZWE5MTYxLTZjYTAtNGMwZC04OWNlLWE3OGVhMDI2Y2YyMyIsImhhbmRsZSI6Im51Z3VuMjEwNSIsImlhdCI6MTc3MzM1MzYyMCwiZXhwIjoxNzczOTU4NDIwfQ.gqnV2geRmvMsnBJ8aC-7Xhn9oPI47CqYvX7M8zqCOB8";
+import { supabase } from './config/supabase'; 
+
 const API_URL = "http://localhost:8080/api/admin";
 
-export default function App() {
+function Login({ setAdminToken }: { setAdminToken: (token: string) => void }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!email || !password) {
+      setError('กรุณากรอกอีเมลและรหัสผ่านให้ครบครับ');
+      return;
+    }
+
+    setLoading(true);
+
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (signInError || !data.session) {
+      setError('อีเมลหรือรหัสผ่านไม่ถูกต้องครับ');
+      setLoading(false);
+      return;
+    }
+
+    setAdminToken(data.session.access_token);
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F5F3FF] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-purple-800">
+          Admin Login
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-500">
+          ระบบจัดการเบื้องหลัง My Mood
+        </p>
+      </div>
+
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-purple-100">
+          <form className="space-y-6" onSubmit={handleLogin}>
+            {error && (
+              <div className="text-red-500 text-sm text-center bg-red-50 p-2 rounded-lg font-medium">
+                {error}
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Email address</label>
+              <div className="mt-1">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <div className="mt-1">
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="submit"
+                disabled={loading}
+                className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${loading ? 'bg-purple-300' : 'bg-purple-600 hover:bg-purple-700'} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors`}
+              >
+                {loading ? 'กำลังเข้าสู่ระบบ...' : 'Sign In'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function Dashboard({ adminToken, onLogout }: { adminToken: string, onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [stats, setStats] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
@@ -17,15 +109,14 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [selectedSong, setSelectedSong] = useState<any>(null);
 
-  // ดึงข้อมูลเมื่อโหลดหน้าจอ หรือเปลี่ยน Tab
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, adminToken]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const headers = { Authorization: `Bearer ${ADMIN_TOKEN}` };
+      const headers = { Authorization: `Bearer ${adminToken}` };
       
       if (activeTab === 'dashboard') {
         const res = await axios.get(`${API_URL}/stats`, { headers });
@@ -37,9 +128,15 @@ export default function App() {
         const res = await axios.get(`${API_URL}/songs`, { headers });
         setSongs(res.data);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Fetch error:", err);
-      alert("ดึงข้อมูลไม่สำเร็จ เช็ค Token ด่วน!");
+      // ถ้า Token หมดอายุ หรือไม่มีสิทธิ์ ให้เด้งออกไปหน้า Login
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        alert("เซสชันหมดอายุ หรือคุณไม่มีสิทธิ์ Admin กรุณาล็อกอินใหม่");
+        onLogout();
+      } else {
+        alert("ดึงข้อมูลไม่สำเร็จ เช็คเซิร์ฟเวอร์ด่วน!");
+      }
     }
     setLoading(false);
   };
@@ -48,30 +145,38 @@ export default function App() {
     if (!window.confirm(`แน่ใจนะว่าจะลบเพลง "${title}"?`)) return;
     try {
       await axios.delete(`${API_URL}/songs/${id}`, {
-        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }
+        headers: { Authorization: `Bearer ${adminToken}` }
       });
       alert('ลบเพลงสำเร็จ!');
-      fetchData(); // โหลดข้อมูลใหม่
+      fetchData(); 
     } catch (err) {
       alert('ลบเพลงไม่สำเร็จ');
     }
   };
 
-  // --- ส่วนเมนูด้านซ้าย (Sidebar) ---
   const Sidebar = () => (
-    <div className="w-64 bg-[#EBE6FF] border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">
-      <div className="p-6 flex items-center gap-3 border-b border-gray-100">
-        <img src="../src/assets/Logo.png" alt="MyMood Logo" className=" h-12"/>
+    <div className="w-64 bg-[#EBE6FF] border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col justify-between">
+      <div>
+        <div className="p-6 flex items-center gap-3 border-b border-gray-100">
+          <img src="../src/assets/Logo.png" alt="MyMood Logo" className=" h-12"/>
+        </div>
+        <div className="p-4 flex flex-col gap-2">
+          <button onClick={() => setActiveTab('dashboard')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'dashboard' ? 'bg-gray-50 text-purple-600 font-semibold' : 'text-gray-500 hover:bg-[#F5F3FF]'}`}>
+            <LayoutDashboard className="w-5 h-5" /> ภาพรวมสถิติ
+          </button>
+          <button onClick={() => setActiveTab('users')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'users' ? 'bg-gray-50 text-purple-600 font-semibold' : 'text-gray-500 hover:bg-[#F5F3FF]'}`}>
+            <Users className="w-5 h-5" /> บัญชีผู้ใช้
+          </button>
+          <button onClick={() => setActiveTab('songs')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'songs' ? 'bg-gray-50 text-purple-600 font-semibold' : 'text-gray-500 hover:bg-[#F5F3FF] '}`}>
+            <Music className="w-5 h-5" /> จัดการเพลง
+          </button>
+        </div>
       </div>
-      <div className="p-4 flex flex-col gap-2">
-        <button onClick={() => setActiveTab('dashboard')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'dashboard' ? 'bg-gray-50 text-purple-600 font-semibold' : 'text-gray-500 hover:bg-[#F5F3FF]'}`}>
-          <LayoutDashboard className="w-5 h-5" /> ภาพรวมสถิติ
-        </button>
-        <button onClick={() => setActiveTab('users')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'users' ? 'bg-gray-50 text-purple-600 font-semibold' : 'text-gray-500 hover:bg-[#F5F3FF]'}`}>
-          <Users className="w-5 h-5" /> บัญชีผู้ใช้
-        </button>
-        <button onClick={() => setActiveTab('songs')} className={`flex items-center gap-3 p-3 rounded-xl transition-all ${activeTab === 'songs' ? 'bg-gray-50 text-purple-600 font-semibold' : 'text-gray-500 hover:bg-[#F5F3FF] '}`}>
-          <Music className="w-5 h-5" /> จัดการเพลง
+      
+      {/* ปุ่มออกจากระบบ */}
+      <div className="p-4 border-t border-gray-200">
+        <button onClick={onLogout} className="flex items-center gap-3 p-3 rounded-xl transition-all w-full text-red-500 hover:bg-red-50 font-medium">
+          <LogOut className="w-5 h-5" /> ออกจากระบบ
         </button>
       </div>
     </div>
@@ -81,10 +186,9 @@ export default function App() {
     <div className="min-h-screen bg-[#F5F3FF] flex">
       <Sidebar />
       
-      {/* พื้นที่เนื้อหาด้านขวา */}
       <div className="ml-64 p-8 w-full max-w-7xl">
         {loading ? (
-          <div className="flex items-center justify-center h-64 text-gray-500">กำลังโหลดข้อมูล...</div>
+          <div className="flex items-center justify-center h-64 text-purple-600 font-medium animate-pulse">กำลังโหลดข้อมูล...</div>
         ) : (
           <>
             {/* ---------------- หน้าภาพรวม ---------------- */}
@@ -92,11 +196,10 @@ export default function App() {
               <div className="animate-fade-in">
                 <h2 className="text-2xl font-bold text-gray-800 mb-6">ภาพรวมระบบ (Overview)</h2>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                  {/* Card สถิติเดิม + สถิติจำลอง */}
                   <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600"><Users /></div>
-                      <div><p className="text-sm text-gray-500">ผู้ใช้ทั้งหมด</p><p className="text-2xl font-bold">{stats?.total_users}</p></div>
+                      <div><p className="text-sm text-gray-500">ผู้ใช้ทั้งหมด</p><p className="text-2xl font-bold">{stats?.total_users || 0}</p></div>
                     </div>
                   </div>
                   <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -108,7 +211,7 @@ export default function App() {
                   <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                     <div className="flex items-center gap-4 mb-4">
                       <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600"><Music /></div>
-                      <div><p className="text-sm text-gray-500">เพลงในระบบ</p><p className="text-2xl font-bold">{stats?.total_songs}</p></div>
+                      <div><p className="text-sm text-gray-500">เพลงในระบบ</p><p className="text-2xl font-bold">{stats?.total_songs || 0}</p></div>
                     </div>
                   </div>
                   <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
@@ -253,5 +356,38 @@ export default function App() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function App() {
+  const [adminToken, setAdminToken] = useState<string | null>(localStorage.getItem('adminToken'));
+
+  const handleLoginSuccess = (token: string) => {
+    setAdminToken(token);
+    localStorage.setItem('adminToken', token);
+  };
+
+  const handleLogout = () => {
+    setAdminToken(null);
+    localStorage.removeItem('adminToken');
+  };
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route 
+          path="/login" 
+          element={!adminToken ? <Login setAdminToken={handleLoginSuccess} /> : <Navigate to="/dashboard" replace />} 
+        />
+        <Route 
+          path="/dashboard" 
+          element={adminToken ? <Dashboard adminToken={adminToken} onLogout={handleLogout} /> : <Navigate to="/login" replace />} 
+        />
+        <Route 
+          path="*" 
+          element={<Navigate to={adminToken ? "/dashboard" : "/login"} replace />} 
+        />
+      </Routes>
+    </BrowserRouter>
   );
 }
