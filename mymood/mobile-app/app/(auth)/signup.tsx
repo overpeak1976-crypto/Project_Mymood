@@ -6,20 +6,16 @@ import { supabase } from "../../lib/supabase";
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // 🛡️ ฟังก์ชันตรวจสอบความปลอดภัยของรหัสผ่าน
   const validateInput = () => {
-    if (!username || !email || !password || !confirmPassword) {
+    if (!email || !password || !confirmPassword) {
       Alert.alert("แจ้งเตือน", "กรุณากรอกข้อมูลให้ครบทุกช่องครับ");
       return false;
     }
-    
-    // เช็ครูปแบบอีเมลคร่าวๆ
+
     const emailRegex = /\S+@\S+\.\S+/;
     if (!emailRegex.test(email)) {
       Alert.alert("แจ้งเตือน", "รูปแบบอีเมลไม่ถูกต้องครับ");
@@ -31,7 +27,6 @@ export default function SignUpScreen() {
       return false;
     }
 
-    // ต้องมีตัวอักษรภาษาอังกฤษและตัวเลขผสมกัน
     const strongPasswordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])/;
     if (!strongPasswordRegex.test(password)) {
       Alert.alert("รหัสผ่านคาดเดาง่าย", "รหัสผ่านต้องมี 'ตัวอักษร' และ 'ตัวเลข' ผสมกันครับ");
@@ -54,42 +49,17 @@ export default function SignUpScreen() {
       const { data, error } = await supabase.auth.signUp({
         email: email,
         password: password,
-        options: {
-          data: {
-            full_name: username, // เก็บชื่อผู้ใช้ไว้ใน metadata
-          }
-        }
       });
 
       if (error) {
-        // ดักจับ Error จาก Supabase (เช่น อีเมลซ้ำ)
         if (error.message.includes("User already registered")) {
           Alert.alert("สมัครไม่สำเร็จ", "อีเมลนี้มีในระบบแล้ว กรุณาใช้อีเมลอื่นครับ");
         } else {
           Alert.alert("สมัครไม่สำเร็จ", error.message);
         }
       } else if (data.user) {
-        // 2. Insert into public.users table manually
-        const handle = username.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const { error: insertError } = await supabase.from('users').insert([{
-          id: data.user.id,
-          email: email,
-          username: username,
-          handle: handle,
-          password_hash: "supabase_managed",
-          is_online: true,
-          last_active: new Date()
-        }]);
-
-        if (insertError) {
-          console.error("Error inserting public user:", insertError);
-          Alert.alert("สมัครสำเร็จ", "แต่ไม่สามารถสร้างโปรไฟล์แบบสาธารณะได้ กรุณาติดต่อทีมงาน");
-        } else {
-          Alert.alert("สำเร็จ!", "สร้างบัญชีเรียบร้อยแล้ว ยินดีต้อนรับเข้าสู่ My Mood 🎉");
-        }
-        
-        // สร้างเสร็จให้เด้งกลับไปหน้า Home หรือ Login (ระบบจะ Login ให้อัตโนมัติถ้าไม่ตั้ง Confirm Email ไว้)
-        router.replace("/");
+        Alert.alert("เกือบเสร็จแล้ว!", "สร้างบัญชีสำเร็จ ไปตั้งชื่อโปรไฟล์กันต่อเลย 🎉");
+        router.replace("/complete-profile"); 
       }
     } catch (err: any) {
       Alert.alert("Error", err.message);
@@ -105,16 +75,9 @@ export default function SignUpScreen() {
       </TouchableOpacity>
 
       <Text className="text-3xl font-extrabold text-purple-800 mb-2">Create Account</Text>
-      <Text className="text-gray-500 mb-8">กรอกข้อมูลเพื่อเริ่มต้นแชร์เสียงเพลงของคุณ</Text>
+      <Text className="text-gray-500 mb-8">ใช้อีเมลสมัครใช้งาน เพื่อเริ่มต้นแชร์เสียงเพลงของคุณ</Text>
 
       <View className="mb-4">
-        <TextInput 
-          className="bg-white p-4 rounded-2xl border border-purple-100 mb-4 shadow-sm"
-          placeholder="Username (ชื่อผู้ใช้)"
-          value={username}
-          onChangeText={setUsername}
-          autoCapitalize="none"
-        />
         <TextInput 
           className="bg-white p-4 rounded-2xl border border-purple-100 mb-4 shadow-sm"
           placeholder="Email Address"

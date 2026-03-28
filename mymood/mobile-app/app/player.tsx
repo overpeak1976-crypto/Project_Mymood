@@ -1,6 +1,6 @@
 import "./global.css";
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Dimensions, ActivityIndicator, Animated, Easing } from 'react-native';
 import { ChevronDown, MoreVertical, Shuffle, SkipBack, Play, Pause, SkipForward, Repeat, Airplay, Share2 } from 'lucide-react-native';
 import { BlurView } from 'expo-blur'; 
 import { useRouter } from 'expo-router';
@@ -8,24 +8,56 @@ import { useAudio } from '../context/AudioContext';
 import Slider from '@react-native-community/slider';
 
 const { width, height } = Dimensions.get('window');
+const ModernSpinner = ({ size = 24, color = "#7C3AED" }) => {
+  const spinValue = new Animated.Value(0);
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg']
+  });
+
+  return (
+    <Animated.View style={{ transform: [{ rotate: spin }], width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{
+        width: size, 
+        height: size, 
+        borderRadius: size / 2, 
+        borderWidth: 3, 
+        borderColor: color, 
+        borderTopColor: 'transparent',
+        borderRightColor: 'transparent'
+      }} />
+    </Animated.View>
+  );
+};
 
 export default function PlayerScreen() {
   const router = useRouter();
-
-  // 🌟 ดึงข้อมูลจาก Context
-  const { currentSong, isPlaying, togglePlayPause, isLoading, seekTo, totalDuration, currentTime } = useAudio();
-  
+  const { currentSong, isPlaying, togglePlayPause, isLoading, seekTo, totalDuration, currentTime, playNext, playPrevious } = useAudio();
   const [isSliding, setIsSliding] = useState(false);
   const [sliderValue, setSliderValue] = useState(0);
+  const [isImageLoading, setIsImageLoading] = useState(true);
+  useEffect(() => {
+    setIsImageLoading(true);
+  }, [currentSong?.id]);
 
-  // 🌟 1. แก้ไขให้อัปเดตตาม currentTime (เวลาปัจจุบันที่เป็นวินาที)
   useEffect(() => {
     if (!isSliding) {
       setSliderValue(currentTime || 0);
     }
   }, [currentTime, isSliding]);
 
-  // 🌟 ฟังก์ชันแปลงเวลา
   const formatTime = (seconds: number) => {
     if (isNaN(seconds) || seconds <= 0) return "0:00";
     const mins = Math.floor(seconds / 60);
@@ -36,8 +68,8 @@ export default function PlayerScreen() {
   if (!currentSong) {
     return (
       <View className="flex-1 bg-black justify-center items-center">
-        <ActivityIndicator color="#FFF" size="large" />
-        <Text className="text-white mt-4">กำลังเตรียมเพลง...</Text>
+        <ModernSpinner color="#FFF" size={40} />
+        <Text className="text-white mt-6 font-medium tracking-widest text-sm opacity-70">PREPARING AUDIO...</Text>
       </View>
     );
   }
@@ -54,14 +86,12 @@ export default function PlayerScreen() {
         blurRadius={100} 
       />
 
-      {/* เลเยอร์กระจกฝ้า */}
       <BlurView
         intensity={20} 
         tint="dark" 
         className="absolute inset-0"
       />
 
-      {/* --- ส่วนแสดงผลหลัก --- */}
       <View className="flex-1 px-8 pt-16 pb-12 justify-between">
 
         {/* Header */}
@@ -76,12 +106,27 @@ export default function PlayerScreen() {
         </View>
 
         {/* --- Artwork Section --- */}
-        <View className="items-center my-8 shadow-2xl shadow-black/50">
-          <Image
-            source={{ uri: currentSong.cover_image_url }}
-            style={{ width: width * 0.8, height: width * 0.8 }}
-            className="rounded-[40px] bg-gray-700 shadow-2xl"
-          />
+        <View className="items-center my-8 shadow-2xl shadow-black/50 justify-center relative">
+          {/* กรอบเงาดำรองรับรูปภาพ */}
+          <View 
+            style={{ width: width * 0.8, height: width * 0.8 }} 
+            className="rounded-[40px] bg-gray-800/80 shadow-2xl items-center justify-center overflow-hidden"
+          >
+            {/* โชว์รูปภาพ */}
+            <Image
+              source={{ uri: currentSong.cover_image_url }}
+              style={{ width: '100%', height: '100%', position: 'absolute' }}
+              className="rounded-[40px]"
+              onLoadEnd={() => setIsImageLoading(false)} // ดักจับเมื่อรูปโหลดเสร็จ
+            />
+            
+            {/* โชว์ Loading Spinner ถ้าเน็ตช้ารูปยังไม่มา */}
+            {isImageLoading && (
+              <View className="absolute inset-0 bg-gray-900/40 items-center justify-center rounded-[40px]">
+                <ModernSpinner color="#FFF" size={50} />
+              </View>
+            )}
+          </View>
         </View>
 
         {/* --- Song Title & Artist --- */}
@@ -102,7 +147,6 @@ export default function PlayerScreen() {
           <Slider
             style={{ width: '100%', height: 67 }}
             minimumValue={0}
-            // 🌟 2. ให้ความยาวสุดของหลอด เท่ากับความยาวเพลงจริงๆ (วินาที)
             maximumValue={totalDuration || 1}
             value={sliderValue}
             onValueChange={(value) => {
@@ -113,15 +157,12 @@ export default function PlayerScreen() {
             maximumTrackTintColor="#FFFFFF40"
             thumbTintColor="#ffffff"
             onSlidingComplete={async (value) => {
-              // 🌟 3. เติม * 1000 เพื่อแปลงวินาทีกลับเป็นมิลลิวินาทีส่งให้ระบบเสียง
               await seekTo(value * 1000);
               setIsSliding(false);
             }}
           />
           <View className="flex-row justify-between px-4 mt-[-10px]">
-            
             <Text className="text-gray-300 text-xs font-open-sans">{formatTime(sliderValue)}</Text>
-            {/* เวลาที่เหลือ คือ ความยาวรวม ลบด้วย เวลาปัจจุบัน */}
             <Text className="text-gray-300 text-xs font-open-sans">-{formatTime((totalDuration || 0) - sliderValue)}</Text>
           </View>
         </View>
@@ -132,17 +173,19 @@ export default function PlayerScreen() {
             <Shuffle color="#FFF" size={24} style={{ opacity: 0.6 }} />
           </TouchableOpacity>
 
-          <TouchableOpacity>
+          <TouchableOpacity onPress={playPrevious}>
             <SkipBack color="#FFF" size={32} fill="#FFF" />
           </TouchableOpacity>
 
+          {/* ปุ่ม Play/Pause กลาง */}
           <TouchableOpacity
             onPress={togglePlayPause}
             disabled={isLoading} 
             className="w-20 h-20 bg-white rounded-full items-center justify-center shadow-md shadow-black/30"
           >
             {isLoading ? (
-              <ActivityIndicator color="#000" size="large" /> 
+              // 🌟 เปลี่ยน ActivityIndicator เป็น ModernSpinner สีดำ
+              <ModernSpinner color="#000" size={36} /> 
             ) : isPlaying ? (
               <Pause color="#000" size={36} fill="#000" />
             ) : (
@@ -150,7 +193,7 @@ export default function PlayerScreen() {
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity>
+          <TouchableOpacity onPress={playNext}>
             <SkipForward color="#FFF" size={32} fill="#FFF" />
           </TouchableOpacity>
 
@@ -172,4 +215,4 @@ export default function PlayerScreen() {
       </View>
     </View>
   );
-} 
+}

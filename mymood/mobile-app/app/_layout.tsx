@@ -32,14 +32,13 @@ export default function RootLayout() {
             router.replace("/(auth)/complete-profile" as any);
           }
         } else {
-          // 🌟 3. หัวใจสำคัญ: ถ้าล็อกอินแล้ว + มีโปรไฟล์แล้ว + ดันค้างอยู่หน้า (auth) -> เด้งเข้าแอป (tabs)
-          // (ถ้าอยู่หน้า player หรือ tabs อยู่แล้ว ระบบจะไม่ยุ่ง ปล่อยผ่านให้นั่งฟังเพลงชิลๆ ได้เลย!)
+          // 3. ถ้าล็อกอินแล้ว แต่ยังอยู่หน้า auth -> บังคับเตะไปหน้า tabs
           if (rootSegment === "(auth)") {
-            router.replace("/(tabs)" as any);
+            router.replace("/(drawer)" as any);
           }
         }
       }
-      setIsReady(true); // เช็คเสร็จแล้ว เปิดม่านโชว์แอปได้!
+      setIsReady(true);
     };
 
     checkAuth();
@@ -68,16 +67,14 @@ export default function RootLayout() {
       appStateSubscription.remove();
     };
   }, [segments[0]]); // 🌟 ทริค: สั่งให้รันใหม่เฉพาะตอนเปลี่ยนโฟลเดอร์หลักเท่านั้น จะได้ไม่บัคลูปรัวๆ
-
   // รอให้เช็คระบบเสร็จก่อน ค่อยโหลดหน้าจอ
   if (!isReady) return null; 
 
   return (
     <AudioProvider>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(drawer)" />
         <Stack.Screen name="(auth)" />
-        {/* 🌟 ประกาศหน้า player ไว้ตรงนี้ด้วย เพื่อให้ Expo จัดการจังหวะเด้งให้สมูทขึ้น */}
         <Stack.Screen name="player" options={{ presentation: 'fullScreenModal' }} />
       </Stack>
     </AudioProvider>
