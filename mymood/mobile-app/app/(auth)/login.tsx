@@ -4,7 +4,9 @@ import { Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, Imag
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { makeRedirectUri } from "expo-auth-session";
-
+import * as WebBrowser from 'expo-web-browser';
+import * as QueryParams from 'expo-auth-session/build/QueryParams';
+WebBrowser.maybeCompleteAuthSession();
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -28,9 +30,9 @@ export default function LoginScreen() {
     } else {
       const { data: userData } = await supabase.auth.getUser();
       if (userData.user) {
-        await supabase.from('users').update({ 
-            is_online: true, 
-            last_active: new Date() 
+        await supabase.from('users').update({
+          is_online: true,
+          last_active: new Date()
         }).eq('id', userData.user.id);
       }
       Alert.alert("สำเร็จ!", "เข้าสู่ระบบเรียบร้อยแล้ว");
@@ -41,13 +43,41 @@ export default function LoginScreen() {
 
   const onGoogleLogin = async () => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const redirectUrl = makeRedirectUri();
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: makeRedirectUri({ scheme: 'mymood' }) },
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
+        },
       });
+
       if (error) throw error;
+      const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+      if (res.type === 'success') {
+        const { params, errorCode } = QueryParams.getQueryParams(res.url);
+        if (errorCode) throw new Error(errorCode);
+        const { access_token, refresh_token } = params;
+        if (access_token && refresh_token) {
+          await supabase.auth.setSession({
+            access_token,
+            refresh_token
+          });
+        }
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData.user) {
+          await supabase.from('users').update({
+            is_online: true,
+            last_active: new Date()
+          }).eq('id', userData.user.id);
+        }
+        Alert.alert("สำเร็จ!", "เข้าสู่ระบบเรียบร้อยแล้ว");
+        router.replace("/");
+      }
     } catch (error: any) {
       Alert.alert("Google Login Error", error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -61,7 +91,7 @@ export default function LoginScreen() {
       <Text className="text-gray-500 mb-10">ล็อกอินเพื่อดูว่าเพื่อนๆ กำลังฟังเพลงอะไรอยู่</Text>
 
       <View className="mb-6">
-        <TextInput 
+        <TextInput
           className="bg-white p-4 rounded-2xl border border-purple-100 mb-4 shadow-sm"
           placeholder="Email Address"
           value={email}
@@ -69,7 +99,7 @@ export default function LoginScreen() {
           autoCapitalize="none"
           keyboardType="email-address"
         />
-        <TextInput 
+        <TextInput
           className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
           placeholder="Password"
           secureTextEntry
@@ -77,7 +107,7 @@ export default function LoginScreen() {
           onChangeText={setPassword}
         />
 
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={handleLogin}
           disabled={loading}
           className={`py-4 rounded-2xl items-center shadow-md ${loading ? 'bg-purple-300' : 'bg-purple-600'}`}
@@ -97,13 +127,13 @@ export default function LoginScreen() {
       </View>
 
       {/* ปุ่ม Google Login */}
-      <TouchableOpacity 
+      <TouchableOpacity
         onPress={onGoogleLogin}
         className="bg-white py-4 rounded-2xl flex-row justify-center items-center border border-gray-200 shadow-sm"
       >
-        <Image 
-          source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" }} 
-          className="w-6 h-6 mr-3" 
+        <Image
+          source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" }}
+          className="w-6 h-6 mr-3"
         />
         <Text className="text-gray-700 font-bold text-base">Continue with Google</Text>
       </TouchableOpacity>

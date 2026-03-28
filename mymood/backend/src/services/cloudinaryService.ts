@@ -42,5 +42,40 @@ export const cloudinaryService = {
       console.error("🚨 Cloudinary Audio Upload Error:", error);
       throw error;
     }
+  },
+ // 🌟 ฟังก์ชันลบไฟล์แบบแม่นยำ 100%
+  // 🌟 ฟังก์ชันลบไฟล์แบบครอบจักรวาล (ดึง Public ID แม่น 100%)
+  async deleteFile(fileUrl: string, resourceType: 'image' | 'video') {
+    if (!fileUrl) return;
+    try {
+      console.log(`🔍 [Cloudinary] เตรียมลบ: ${fileUrl}`);
+
+      // ใช้ระบบ URL ของ Node.js มาช่วยชำแหละ
+      const urlObj = new URL(fileUrl);
+      const pathParts = urlObj.pathname.split('/');
+      const uploadIndex = pathParts.indexOf('upload');
+
+      if (uploadIndex === -1) throw new Error("ไม่ใช่ URL ของ Cloudinary");
+
+      // ดึงส่วนที่อยู่หลังคำว่า upload/ มาทั้งหมด
+      let publicIdPath = pathParts.slice(uploadIndex + 1).join('/');
+
+      // ถ้ามีเวอร์ชัน (เช่น v1774469955/) ให้ตัดทิ้ง
+      if (publicIdPath.match(/^v\d+\//)) {
+        publicIdPath = publicIdPath.replace(/^v\d+\//, '');
+      }
+
+      // ตัดนามสกุลไฟล์ (.mp3, .png) ทิ้ง (ถ้ามี)
+      const lastDotIndex = publicIdPath.lastIndexOf('.');
+      const publicId = lastDotIndex !== -1 ? publicIdPath.substring(0, lastDotIndex) : publicIdPath;
+      console.log(`🎯 [Cloudinary] Public ID ที่สกัดได้คือ: [${publicId}]`);
+
+      // ยิงคำสั่งทำลายไฟล์!
+      await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+      console.log(`🗑️ [Cloudinary] ลบไฟล์ออกจากระบบสำเร็จ!`);
+
+    } catch (error) {
+      console.error(`❌ [Cloudinary] ลบไฟล์พลาด:`, error);
+    }
   }
 };

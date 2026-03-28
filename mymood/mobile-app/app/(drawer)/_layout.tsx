@@ -9,10 +9,7 @@ export default function DrawerLayout() {
             headerShown: false, 
             drawerStyle: {
                 width: 300
-            }    
-        }}
-        
-        >
+            }}}>
         </Drawer>
     );
 }
