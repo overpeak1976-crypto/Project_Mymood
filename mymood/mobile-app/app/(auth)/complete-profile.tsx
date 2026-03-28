@@ -19,9 +19,9 @@ export default function CompleteProfileScreen() {
       if (data?.user) {
         setSessionUser(data.user);
         if (data.user.user_metadata?.full_name) {
-             setUsername(data.user.user_metadata.full_name);
-             const baseName = data.user.user_metadata.full_name.toLowerCase().replace(/[^a-z0-9]/g, "");
-             setHandle(`${baseName}${randomDigits}`);
+            setUsername(data.user.user_metadata.full_name);
+            const baseName = data.user.user_metadata.full_name.toLowerCase().replace(/[^a-z0-9]/g, "");
+            setHandle(`${baseName}${randomDigits}`);
         }
       }
     });
@@ -48,9 +48,9 @@ export default function CompleteProfileScreen() {
         .maybeSingle();
 
       if (existingHandle) {
-         Alert.alert("อ๊ะ!", "Handle นี้มีคนใช้ไปแล้วครับ ลองเปลี่ยนใหม่ดูนะ");
-         setLoading(false);
-         return;
+        Alert.alert("อ๊ะ!", "Handle นี้มีคนใช้ไปแล้วครับ ลองเปลี่ยนใหม่ดูนะ");
+        setLoading(false);
+        return;
       }
 
       const { error } = await supabase.from("users").upsert({
