@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import { LogBox } from 'react-native';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../lib/supabase';
 
 LogBox.ignoreLogs([
   '[expo-av]: Expo AV has been deprecated'
@@ -22,7 +22,6 @@ interface AudioContextType {
   currentTime: number;      
   totalDuration: number;    
   progressFraction: number; 
-  // 🌟 1. อัปเดต playSong ให้รับ playlist ได้ และเพิ่มฟังก์ชันเปลี่ยนเพลง
   playSong: (song: Song, playlist?: Song[]) => Promise<void>; 
   togglePlayPause: () => Promise<void>;
   seekTo: (millis: number) => Promise<void>;
@@ -37,17 +36,22 @@ const AudioContext = createContext<AudioContextType | undefined>(undefined);
 export function AudioProvider({ children }: { children: React.ReactNode }) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
-
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
   const [progressFraction, setProgressFraction] = useState(0);
-
-  // 🌟 2. เพิ่ม State สำหรับเก็บคิวเพลง (Playlist) และลำดับเพลง
   const [queue, setQueue] = useState<Song[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
+
+  // ใช้ useRef เพื่อให้ callback ใน setOnPlaybackStatusUpdate เข้าถึงค่าล่าสุดได้
+  const queueRef = useRef(queue);
+  const currentIndexRef = useRef(currentIndex);
+
+  useEffect(() => {
+    queueRef.current = queue;
+    currentIndexRef.current = currentIndex;
+  }, [queue, currentIndex]);
 
   const seekTo = async (millis: number) => {
     if (sound) {
@@ -55,105 +59,98 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // 🌟 3. ฟังก์ชันเล่นเพลงถัดไป
   const playNext = async () => {
-    if (queue.length > 0 && currentIndex < queue.length - 1) {
-      const nextSong = queue[currentIndex + 1];
-      await playSong(nextSong, queue);
+    const nextIndex = currentIndexRef.current + 1;
+    if (queueRef.current.length > 0 && nextIndex < queueRef.current.length) {
+      const nextSong = queueRef.current[nextIndex];
+      await playSong(nextSong, queueRef.current);
     } else {
       console.log("จบเพลย์ลิสต์แล้วครับ!");
-      // ถ้าอยากให้วนลูป ให้เรียก await playSong(queue[0], queue); แทน
     }
   };
 
-  // 🌟 4. ฟังก์ชันย้อนกลับเพลงเดิม/เล่นเพลงก่อนหน้า
   const playPrevious = async () => {
+    // ดึงตำแหน่งปัจจุบันมาเช็ค (หน่วยเป็นวินาที)
     if (currentTime > 3) {
-      // ถ้าฟังไปเกิน 3 วินาทีแล้วกด Previous ให้เริ่มเพลงเดิมใหม่
       await seekTo(0);
-    } else if (queue.length > 0 && currentIndex > 0) {
-      // ถ้าเพิ่งเริ่มฟัง ให้ถอยไปเพลงก่อนหน้า
-      const prevSong = queue[currentIndex - 1];
-      await playSong(prevSong, queue);
+    } else {
+      const prevIndex = currentIndexRef.current - 1;
+      if (queueRef.current.length > 0 && prevIndex >= 0) {
+        const prevSong = queueRef.current[prevIndex];
+        await playSong(prevSong, queueRef.current);
+      }
     }
   };
-
-  // ทริค: ใช้ useRef เก็บ playNext ไว้ เพื่อให้ฟังก์ชันใน setOnPlaybackStatusUpdate ดึงไปใช้ได้แบบข้อมูลไม่เพี้ยน
-  const playNextRef = useRef(playNext);
-  useEffect(() => {
-    playNextRef.current = playNext;
-  }, [playNext]);
 
   const recordPlayHistory = async (songId: string) => {
     try {
-      // ดึง Token ของคนที่กำลังล็อกอินอยู่
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) return;
-
-      // ⚠️ สำคัญ: เปลี่ยน IP ตรงนี้ให้ตรงกับ IP เครื่องคอมของคุณ (ที่รัน Backend อยู่)
-      const BACKEND_URL = "http://192.168.1.37:8080"; 
-
+      
+      // 🌟 เช็คบรรทัดนี้: ต้องดึงจาก process.env เท่านั้น
+      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
       const response = await fetch(`${BACKEND_URL}/api/play/${songId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}` // ส่งบัตรยืนยันตัวตนไปให้ยาม
+          'Authorization': `Bearer ${session.access_token}`
         }
       });
-
-      if (!response.ok) throw new Error("Backend ตอบกลับมาว่า Error");
-      console.log(`✅ [AudioContext] บันทึกประวัติและบวกยอดวิวให้เพลง ID: ${songId} สำเร็จ!`);
+      console.log(`✅ [AudioContext] บันทึกยอดวิวเพลง ID: ${songId} สำเร็จ`);
     } catch (error) {
-      console.error("❌ [AudioContext] ไม่สามารถบันทึกยอดวิวได้:", error);
+      console.error("❌ [AudioContext] บันทึกยอดวิวไม่สำเร็จ:", error);
     }
-  };  
-  // 🌟 5. อัปเดต playSong ให้รับ Playlist ได้
-  const playSong = async (song: Song, playlist: Song[] = []) => {    
-    setCurrentSong(song);
-    setIsLoading(true); 
+  };
 
-    if (playlist.length > 0) {
-      setQueue(playlist);
-      setCurrentIndex(playlist.findIndex(s => s.id === song.id));
-    } else if (queue.length > 0) {
-      setCurrentIndex(queue.findIndex(s => s.id === song.id));
+  const onPlaybackStatusUpdate = (status: any) => {
+    if (status.isLoaded) {
+      // 🌟 อัปเดตสถานะการเล่นให้ตรงกับความจริง (แก้ปัญหา UI ไม่เปลี่ยนตาม)
+      setIsPlaying(status.isPlaying);
+      
+      const duration = status.durationMillis || 0;
+      setCurrentTime(status.positionMillis / 1000);
+      setTotalDuration(duration / 1000);
+      setProgressFraction(duration > 0 ? status.positionMillis / duration : 0);
+
+      if (status.didJustFinish) {
+        playNext();
+      }
+    } else if (status.error) {
+      console.error(`Playback Error: ${status.error}`);
     }
+  };
 
+  const playSong = async (song: Song, playlist: Song[] = []) => {
     try {
-      if (sound) await sound.unloadAsync();
+      setIsLoading(true);
+      
+      // จัดการ Queue
+      if (playlist.length > 0) {
+        setQueue(playlist);
+        setCurrentIndex(playlist.findIndex(s => s.id === song.id));
+      }
+
+      // ล้างเพลงเก่า
+      if (sound) {
+        await sound.unloadAsync();
+      }
 
       const { sound: newSound } = await Audio.Sound.createAsync(
         { uri: song.audio_file_url },
-        { shouldPlay: true }
+        { shouldPlay: true, progressUpdateIntervalMillis: 500 }, // อัปเดตทุก 0.5 วินาที
+        onPlaybackStatusUpdate
       );
-      
+
       setSound(newSound);
+      setCurrentSong(song);
       setIsPlaying(true);
-
-      // 🌟🌟 ยิง API ไปบอก Backend ว่า "เห้ย มีคนเปิดฟังเพลงนี้นะ บวกวิวให้หน่อย!"
-      // (เราสั่งให้มันทำงานไปเลยโดยไม่ต้องใช้ await นำหน้า เพื่อที่เพลงจะได้ไม่สะดุดรอ)
+      
+      // บันทึกประวัติ
       recordPlayHistory(song.id);
-
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        // ... (โค้ดดักจับเวลาเหมือนเดิม) ...
-        if (status.isLoaded) {
-          const duration = status.durationMillis || 0; 
-          setCurrentTime(status.positionMillis / 1000);
-          setTotalDuration(duration / 1000); 
-          setProgressFraction(duration > 0 ? status.positionMillis / duration : 0); 
-          
-          if (status.didJustFinish) {
-            setIsPlaying(false);
-            setCurrentTime(0);
-            setProgressFraction(0);
-            playNextRef.current(); 
-          }
-        }
-      });
     } catch (error) {
       console.error("Error playing sound", error);
     } finally {
-      setIsLoading(false); 
+      setIsLoading(false);
     }
   };
 
@@ -161,52 +158,40 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     if (!sound) return;
     if (isPlaying) {
       await sound.pauseAsync();
-      setIsPlaying(false);
     } else {
       await sound.playAsync();
-      setIsPlaying(true);
     }
   };
 
+  // ล้างหน่วยความจำเมื่อ Component ถูกทำลาย
   useEffect(() => {
-    return sound ? () => { sound.unloadAsync(); } : undefined;
-  }, [sound]);
-
-  useEffect(() => {
-    const configureAudioSession = async () => {
-      try {
-         await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          staysActiveInBackground: true,
-          playsInSilentModeIOS: true,
-          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix, 
-          playThroughEarpieceAndroid: false
-        });
-      } catch (e) {
-        console.error("❌ ตั้งค่า Audio Mode ไม่สำเร็จ:", e);
+    return () => {
+      if (sound) {
+        sound.unloadAsync();
       }
     };
+  }, [sound]);
 
-    configureAudioSession();
+  // ตั้งค่า Audio Mode ครั้งเดียวตอนเริ่ม
+  useEffect(() => {
+    const configureAudio = async () => {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        staysActiveInBackground: true,
+        playsInSilentModeIOS: true,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        shouldDuckAndroid: true,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        playThroughEarpieceAndroid: false
+      });
+    };
+    configureAudio();
   }, []);
 
   return (
     <AudioContext.Provider value={{ 
-      currentSong, 
-      isPlaying, 
-      isLoading, 
-      currentTime, 
-      totalDuration, 
-      progressFraction,
-      playSong, 
-      togglePlayPause, 
-      seekTo,
-      playNext,        // 🌟 ส่งออกไปให้หน้าอื่นใช้
-      playPrevious,    // 🌟 ส่งออกไปให้หน้าอื่นใช้
-      queue,           
-      currentIndex     
+      currentSong, isPlaying, isLoading, currentTime, totalDuration, progressFraction,
+      playSong, togglePlayPause, seekTo, playNext, playPrevious, queue, currentIndex 
     }}>
       {children}
     </AudioContext.Provider>
