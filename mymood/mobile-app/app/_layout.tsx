@@ -2,66 +2,63 @@ import { useEffect, useState } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { AppState, AppStateStatus } from "react-native";
 import { supabase } from "../lib/supabase";
+import { AudioProvider } from '../context/AudioContext';
 
 export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
-  const [sessionChecked, setSessionChecked] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    const checkSession = async (session: any | null) => {
-      setSessionChecked(true);
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const rootSegment = segments[0]; // ดึงชื่อโฟลเดอร์หลักมาเช็ค (เช่น '(auth)', '(tabs)', 'player')
 
-      if (session) {
+      if (!session) {
+        // 1. ถ้ายังไม่ล็อกอิน แล้วไม่ได้อยู่หน้า auth -> บังคับเตะไปหน้า auth
+        if (rootSegment !== "(auth)") {
+          router.replace("/(auth)" as any);
+        }
+      } else {
+        // 2. (เผื่อไว้) เช็คว่าตั้งชื่อ Profile หรือยัง
         const { data: profile } = await supabase
           .from("users")
           .select("handle")
           .eq("id", session.user.id)
           .maybeSingle();
 
-        const hasProfile = profile && profile.handle;
-
-        if (hasProfile) {
-          if (segments[0] !== "(tabs)") {
-            router.replace("/(tabs)" as any);
+        if (!profile?.handle) {
+          if (segments[1] !== "complete-profile") {
+            router.replace("/(auth)/complete-profile" as any);
           }
         } else {
-          if (segments[1] !== "complete-profile") {
-             router.replace("/(auth)/complete-profile" as any);
+          // 🌟 3. หัวใจสำคัญ: ถ้าล็อกอินแล้ว + มีโปรไฟล์แล้ว + ดันค้างอยู่หน้า (auth) -> เด้งเข้าแอป (tabs)
+          // (ถ้าอยู่หน้า player หรือ tabs อยู่แล้ว ระบบจะไม่ยุ่ง ปล่อยผ่านให้นั่งฟังเพลงชิลๆ ได้เลย!)
+          if (rootSegment === "(auth)") {
+            router.replace("/(tabs)" as any);
           }
         }
-
-      } else {
-        if (segments[0] !== "(auth)") {
-          router.replace("/(auth)" as any);
-        }
       }
+      setIsReady(true); // เช็คเสร็จแล้ว เปิดม่านโชว์แอปได้!
     };
 
-    supabase.auth.getSession().then(({ data }) => {
-       checkSession(data.session);
+    checkAuth();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT") {
+        checkAuth();
+      }
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === "SIGNED_IN") {
-           checkSession(session);
-        } else if (event === "SIGNED_OUT") {
-          router.replace("/(auth)" as any);
-        }
-      }
-    );
-
+    // --- ส่วนอัปเดตสถานะ Online ---
     const handleAppStateChange = async (nextAppState: AppStateStatus) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return; 
-      const userId = session.user.id;
       const isOnline = nextAppState === "active";
       await supabase.from("users").update({
         is_online: isOnline,
-        last_active: new Date(),
-        updated_at: new Date()
-      }).eq("id", userId);
+        last_active: new Date()
+      }).eq("id", session.user.id);
     };
 
     const appStateSubscription = AppState.addEventListener("change", handleAppStateChange);
@@ -70,14 +67,19 @@ export default function RootLayout() {
       authListener.subscription.unsubscribe();
       appStateSubscription.remove();
     };
-  }, [segments]);
+  }, [segments[0]]); // 🌟 ทริค: สั่งให้รันใหม่เฉพาะตอนเปลี่ยนโฟลเดอร์หลักเท่านั้น จะได้ไม่บัคลูปรัวๆ
 
-  if (!sessionChecked) return null; 
+  // รอให้เช็คระบบเสร็จก่อน ค่อยโหลดหน้าจอ
+  if (!isReady) return null; 
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-    </Stack>
+    <AudioProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(auth)" />
+        {/* 🌟 ประกาศหน้า player ไว้ตรงนี้ด้วย เพื่อให้ Expo จัดการจังหวะเด้งให้สมูทขึ้น */}
+        <Stack.Screen name="player" options={{ presentation: 'fullScreenModal' }} />
+      </Stack>
+    </AudioProvider>
   );
 }

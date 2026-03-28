@@ -4,6 +4,7 @@ import { aiService } from '../services/aiService';
 import { audioService } from '../services/audioService';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { cloudinaryService } from '../services/cloudinaryService';
+import fs from 'fs';
 import * as mm from 'music-metadata';
 export const songController = {
   // ดึงเพลงทั้งหมด
@@ -24,28 +25,30 @@ export const songController = {
   // อัปโหลดเพลง + รูปปก + สร้าง Super Embedding ให้ AI ฉลาดสุดๆ
   async uploadSong(req: AuthRequest, res: Response) {
     try {
-      const { title, artist, audio_file_url } = req.body;
+      const { title, artist } = req.body;
 
       // 🌟 1. ดักจับไฟล์ทั้ง 2 ชนิดที่ส่งมาพร้อมกัน
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-      
+
       // เช็คว่ามีส่งไฟล์เสียงมาด้วยไหม (จำเป็นต้องมี)
       if (!files || !files['file']) {
         return res.status(400).json({ error: "ไม่พบไฟล์เพลง กรุณาแนบไฟล์ .mp3 มาด้วยครับ" });
       }
-
+      if (!files['cover_image']) {
+        return res.status(400).json({ error: "กรุณาแนบรูปปกเพลงมาด้วยครับ" });
+      }
       // แยกไฟล์ออกมาเตรียมไว้
       const audioFile = files['file'][0];
       const coverImageFile = files['cover_image'][0];
 
       const localFilePath = audioFile.path;
       console.log(`🎵 กำลังประมวลผลเพลง: ${title} - ${artist}`);
-      console.log("⏱️ กำลังอ่านความยาวเพลง...");
+
       const metadata = await mm.parseFile(localFilePath);
       const durationSeconds = Math.round(metadata.format.duration || 0); // ปัดเศษให้เป็นจำนวนเต็ม
       console.log(`✅ ความยาวเพลง: ${durationSeconds} วินาที`);
       // 🌟 1. ดักจับชื่ออัลบั้ม (ถ้ามีส่งมาด้วย) เพื่อจัดการข้อมูลให้ครบถ้วน
-      const albumName = req.body.album; 
+      const albumName = req.body.album;
 
       // 🌟🌟 สเต็ปใหม่ 1.5: ระบบจัดการศิลปิน (Artist) และอัลบั้ม (Album) อัตโนมัติ 🌟🌟
       console.log(`🧑‍🎤 กำลังตรวจสอบข้อมูลศิลปิน: ${artist}`);
@@ -69,19 +72,19 @@ export const songController = {
           .insert([{ name: artist }])
           .select('id')
           .single();
-        
+
         if (artistError) throw artistError;
         finalArtistId = newArtist.id;
       }
-
+      console.log("--- กำลังส่งไฟล์ให้ Audio AI วิเคราะห์ ---");
+      const audioStats = await audioService.analyzeAudio(localFilePath);
       //  2. อัปโหลดรูปปกและไฟล์เสียงขึ้น Cloudinary 
       console.log("☁️ กำลังส่งไฟล์เสียงและรูปปกขึ้น Cloudinary...");
       const coverImageUrl = await cloudinaryService.uploadImage(coverImageFile.path, 'mymood_covers');
       const finalAudioUrl = await cloudinaryService.uploadAudio(localFilePath, 'mymood_audio');
       console.log(`✅ อัปโหลดไฟล์เสียงสำเร็จ! URL: ${finalAudioUrl}`);
       // 3. วิเคราะห์คลื่นเสียงดนตรี (จะได้ค่าทั้ง 5 ตัวมา)
-      console.log("--- กำลังส่งไฟล์ให้ Audio AI วิเคราะห์ ---");
-      const audioStats = await audioService.analyzeAudio(localFilePath);
+      
 
       // 3. ระบบจัดการอัลบั้ม (ถ้าผู้ใช้ส่งชื่ออัลบั้มมาด้วย)
       let finalAlbumId = null;
@@ -100,35 +103,35 @@ export const songController = {
           // ถ้าไม่มีอัลบั้มนี้ ให้สร้างใหม่ พร้อมเอารูปปกเพลงไปเป็นรูปปกอัลบั้มด้วย
           const { data: newAlbum, error: albumError } = await supabase
             .from('albums')
-            .insert([{ 
-              title: albumName, 
-              artist_id: finalArtistId, 
-              cover_image_url: coverImageUrl 
+            .insert([{
+              title: albumName,
+              artist_id: finalArtistId,
+              cover_image_url: coverImageUrl
             }])
             .select('id')
             .single();
-            
+
           if (albumError) throw albumError;
           finalAlbumId = newAlbum.id;
         }
       }
-      
+
       // 4. บันทึกข้อมูลเพลงลงตาราง songs (เก็บข้อมูลเชิงลึกทั้งหมด + รูปลง Database)
       console.log("💾 กำลังบันทึกข้อมูลเพลงลง Database...");
       const { data: songData, error: songError } = await supabase
         .from('songs')
-        .insert([{ 
-          title, 
+        .insert([{
+          title,
           artist, // เก็บ Text ไว้เหมือนเดิมกันแอปพัง
           artist_id: finalArtistId, // 👈 โยงความสัมพันธ์ไปหาตารางศิลปิน!
           album_id: finalAlbumId,   // 👈 โยงความสัมพันธ์ไปหาตารางอัลบั้ม!
           uploaded_by: req.user.id,
-          audio_file_url: finalAudioUrl, 
-          cover_image_url: coverImageUrl, 
-          bpm: audioStats.bpm, 
+          audio_file_url: finalAudioUrl,
+          cover_image_url: coverImageUrl,
+          bpm: audioStats.bpm,
           danceability: audioStats.danceability,
-          music_key: audioStats.key,       
-          music_scale: audioStats.scale,   
+          music_key: audioStats.key,
+          music_scale: audioStats.scale,
           energy: audioStats.energy,
           duration_seconds: durationSeconds
         }])
@@ -143,15 +146,15 @@ export const songController = {
       // 🌟🌟 5. ท่าไม้ตายใหม่! ให้ Gemini แต่งประโยค Super Context 🌟🌟
       console.log("--- กำลังให้ Gemini วิเคราะห์และแต่งเรื่องราวของเพลง ---");
       const superContextForAI = await aiService.generateSuperContext(
-        title, 
-        artist, 
-        audioStats.bpm, 
-        audioStats.key, 
-        audioStats.scale, 
-        audioStats.energy, 
+        title,
+        artist,
+        audioStats.bpm,
+        audioStats.key,
+        audioStats.scale,
+        audioStats.energy,
         audioStats.danceability
       );
-      
+
       console.log("👉 ประโยคที่จะฝังลงสมอง AI คือ:\n", superContextForAI);
 
       // 6. แปลงประโยค Super Context เป็นตัวเลข Vector
@@ -160,10 +163,10 @@ export const songController = {
       // 7. บันทึก Vector ลงตาราง song_vectors
       const { error: vectorError } = await supabase
         .from('song_vectors')
-        .insert([{ 
-          song_id: songData.id, 
+        .insert([{
+          song_id: songData.id,
           mood_keywords: superContextForAI, // เก็บประโยคเต็มๆ ไว้ให้ดูง่ายๆ
-          embedding: `[${embedding.join(',')}]` 
+          embedding: `[${embedding.join(',')}]`
         }]);
 
       if (vectorError) {
@@ -175,17 +178,30 @@ export const songController = {
     } catch (error: any) {
       console.error("🚨 Upload Route Error:", error);
       res.status(500).json({ error: error.message });
+    } finally {
+      // ดึงไฟล์จาก req โดยตรงเพื่อป้องกันปัญหาตัวแปร files มองไม่เห็น
+      const uploadedFiles = req.files as { [fieldname: string]: Express.Multer.File[] };
+      
+      // 🧹 เคลียร์ขยะ: ลบไฟล์เสียงที่พักไว้ชั่วคราวทิ้ง
+      if (uploadedFiles && uploadedFiles['file'] && fs.existsSync(uploadedFiles['file'][0].path)) {
+        fs.unlinkSync(uploadedFiles['file'][0].path);
+      }
+      
+      // 🧹 เคลียร์ขยะ: ลบไฟล์รูปปกที่พักไว้ชั่วคราวทิ้ง
+      if (uploadedFiles && uploadedFiles['cover_image'] && fs.existsSync(uploadedFiles['cover_image'][0].path)) {
+        fs.unlinkSync(uploadedFiles['cover_image'][0].path);
+      }
     }
   },
 
   // ระบบค้นหาเพลงด้วย AI (AI Search)
   async searchSongsByAI(req: AuthRequest, res: Response) {
     try {
-      const { prompt } = req.body; 
+      const { prompt } = req.body;
       if (!prompt) return res.status(400).json({ error: "กรุณาใส่คำค้นหา (prompt)" });
 
       console.log(`ผู้ใช้พิมพ์ค้นหา: "${prompt}" \n`);
-      
+
 
       // 1. ให้ Gemini ช่วยแปลคำวัยรุ่น เป็นคีย์เวิร์ดเทพๆ
       console.log("--- กำลังให้ Gemini ช่วยวิเคราะห์คำค้นหา ---");
@@ -198,8 +214,8 @@ export const songController = {
       // 3. ยิงไปถาม Database
       const { data: songs, error: matchError } = await supabase.rpc('match_songs', {
         query_embedding: `[${queryVector.join(',')}]`,
-        match_threshold: 0.1, 
-        match_count: 5 
+        match_threshold: 0.1,
+        match_count: 5
       });
 
       if (matchError) throw matchError;

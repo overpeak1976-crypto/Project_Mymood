@@ -1,10 +1,10 @@
 import "../global.css";
 import React, { useState } from "react";
-import { Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, Image } from "react-native";
+import { Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, Image} from "react-native";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import { makeRedirectUri } from "expo-auth-session";
-
+import * as Linking from 'expo-linking';
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -41,9 +41,10 @@ export default function LoginScreen() {
 
   const onGoogleLogin = async () => {
     try {
+      const redirectUrl = Linking.createURL('/');
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: makeRedirectUri({ scheme: 'mymood' }) },
+        options: {redirectTo: redirectUrl,},
       });
       if (error) throw error;
     } catch (error: any) {

@@ -1,6 +1,7 @@
 // @ts-ignore
 import { Essentia, EssentiaWASM } from 'essentia.js';
 import * as fs from 'fs';
+import path from 'path'; // 🌟 1. นำเข้าโมดูล path เพิ่มเข้ามา
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 // @ts-ignore
@@ -19,13 +20,13 @@ const initEssentia = async () => {
 };
 
 export const audioService = {
-  // 1. ฟังก์ชันย่อย: แปลงไฟล์ MP3 เป็น WAV (แบบ Mono เพื่อให้ AI อ่านง่าย)
+  // 1. ฟังก์ชันย่อย: แปลงไฟล์ MP3 เป็น WAV
   convertMp3ToWav(inputPath: string, outputPath: string): Promise<void> {
     return new Promise((resolve, reject) => {
       ffmpeg(inputPath)
         .toFormat('wav')
-        .audioChannels(1) // แปลงเป็นเสียง Mono (1 ช่องสัญญาณ)
-        .audioFrequency(44100) // มาตรฐานเสียง CD
+        .audioChannels(1)
+        .audioFrequency(44100)
         .on('end', () => resolve())
         .on('error', (err) => reject(err))
         .save(outputPath);
@@ -33,19 +34,25 @@ export const audioService = {
   },
 
   // 2. ฟังก์ชันหลัก: วิเคราะห์เสียง
-  // 🌟 จุดที่แก้: เพิ่ม key, scale, energy เข้าไปในวงเล็บ Promise
   async analyzeAudio(filePath: string): Promise<{ bpm: number, danceability: number, key: string, scale: string, energy: number }> {
-    const tempWavPath = `${filePath}_temp.wav`;
+    
+    // 🌟 2. แปลง Path แบบย่อ ให้เป็นแบบเต็ม (Absolute Path) เพื่อไม่ให้ FFmpeg งง
+    const absoluteInputPath = path.resolve(filePath);
+    const tempWavPath = path.resolve(`${filePath}_temp.wav`);
 
     try {
-      console.log(`--- DEBUG: เริ่มสกัดคลื่นเสียงจริงจากไฟล์ ${filePath} ---`);
+      console.log(`--- DEBUG: เริ่มสกัดคลื่นเสียงจริงจากไฟล์ ${absoluteInputPath} ---`);
+      
+      // 🌟 3. ดักเช็คให้ชัวร์ว่าไฟล์ยังมีชีวิตอยู่ไหม (เผื่อ Cloudinary แอบลบไฟล์ทิ้งไปก่อน)
+      if (!fs.existsSync(absoluteInputPath)) {
+          throw new Error(`หาไฟล์ไม่เจอ! ไฟล์อาจจะถูกลบไปแล้วก่อนถึงคิว FFmpeg: ${absoluteInputPath}`);
+      }
+
       const es = await initEssentia();
       
-      // สเต็ป A: แปลง MP3 เป็น WAV
       console.log(`[1/3] กำลังแปลงไฟล์เป็น WAV ด้วย FFmpeg...`);
-      await this.convertMp3ToWav(filePath, tempWavPath);
+      await this.convertMp3ToWav(absoluteInputPath, tempWavPath);
 
-      // สเต็ป B: อ่านไฟล์ WAV แล้วแปลงเป็นตัวเลข
       console.log(`[2/3] กำลังถอดรหัสคลื่นเสียง...`);
       const buffer = fs.readFileSync(tempWavPath);
       const result = wav.decode(buffer);
@@ -53,12 +60,10 @@ export const audioService = {
       const audioArray = Array.from(result.channelData[0]); 
       const vectorAudio = es.arrayToVector(audioArray);
 
-      // สเต็ป C: ให้ Essentia AI วิเคราะห์แบบจัดเต็ม!
       console.log(`[3/3] Essentia AI กำลังวิเคราะห์ข้อมูลเชิงลึก...`);
       const rhythm = es.RhythmExtractor2013(vectorAudio);
       const dance = es.Danceability(vectorAudio);
       
-      // 🌟 เพิ่มการสกัดคีย์เพลงและพลังงาน
       const keyData = es.KeyExtractor(vectorAudio);
       const energyData = es.Energy(vectorAudio);
 
@@ -68,10 +73,9 @@ export const audioService = {
 
       console.log(`✅ สำเร็จ! BPM: ${bpmResult}, Key: ${keyData.key} ${keyData.scale}, Energy: ${energyResult}`);
 
-      // ลบไฟล์ WAV ชั่วคราวทิ้งเพื่อไม่ให้รกเซิร์ฟเวอร์
+      // ลบไฟล์ WAV ชั่วคราวทิ้ง
       if (fs.existsSync(tempWavPath)) fs.unlinkSync(tempWavPath);
 
-      // 🌟 ส่งข้อมูลทั้ง 5 ตัวกลับไปให้ Controller
       return {
           bpm: bpmResult,
           danceability: danceResult,
@@ -83,9 +87,7 @@ export const audioService = {
     } catch (error) {
       console.error("❌ ล้มเหลวในการวิเคราะห์คลื่นเสียง:", error);
       if (fs.existsSync(tempWavPath)) fs.unlinkSync(tempWavPath);
-      // 🌟 ถ้า Error ก็ต้องส่งกลับให้ครบ 5 ตัวเหมือนกัน ไม่งั้นแอปพัง
       return { bpm: 0, danceability: 0, key: 'Unknown', scale: 'Unknown', energy: 0 };
     }
   }
-  
 };

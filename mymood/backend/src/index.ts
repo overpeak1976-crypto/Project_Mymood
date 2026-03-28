@@ -21,9 +21,9 @@ const port = process.env.PORT || 8080;
 app.use(cors());
 app.use(express.json()); // รับข้อมูลแบบ JSON
 
+app.use('/api/auth', authRoutes);
 app.use('/api/songs', songRoutes);
 app.use('/api/ai', aiRoutes);
-app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/inbox', inboxRoutes);
 app.use('/api/admin', adminRoutes);
