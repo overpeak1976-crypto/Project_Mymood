@@ -53,7 +53,7 @@ export default function CompleteProfileScreen() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.5,
-      base64: true, // 🌟 ขอ Base64 มาเลยจะได้ไม่ต้องอ่านไฟล์ซ้ำ
+      base64: true,
     });
 
     if (!result.canceled) {
@@ -87,53 +87,69 @@ export default function CompleteProfileScreen() {
 
       let finalImageUrl = profileImage;
 
-      // 2. 🌟 จัดการอัปโหลดรูป (ถ้าเป็นไฟล์ในเครื่อง)
-      if (profileImage && profileImage.startsWith('file://')) {
-        const ext = profileImage.split('.').pop()?.toLowerCase() || 'jpg';
-        const fileName = `${sessionUser.id}/${Date.now()}.${ext}`;
-        
-        // อ่านไฟล์เป็น Base64
-        const base64 = await FileSystem.readAsStringAsync(profileImage, { encoding: 'base64' });
-        
-        // อัปโหลดไปที่ Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(fileName, decode(base64), {
-            contentType: `image/${ext}`,
-            upsert: true,
-          });
+      // 2. 🌟 จัดการอัปโหลดรูป (รองรับทั้งไฟล์ในเครื่อง และลิงก์จาก Google)
+      if (profileImage && !profileImage.includes('supabase.co')) {
+        try {
+          let base64 = "";
+          let ext = "jpg";
 
-        if (uploadError) throw uploadError;
+          if (profileImage.startsWith('http')) {
+            // กรณีเป็นลิงก์เว็บ (Google Avatar) -> โหลดมาเป็นไฟล์ชั่วคราวก่อน
+            const tempFile = `${FileSystem.cacheDirectory}temp_avatar_${Date.now()}.jpg`;
+            const { uri } = await FileSystem.downloadAsync(profileImage, tempFile);
+            base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+          } else {
+            // กรณีเลือกไฟล์จากแกลเลอรี่ในเครื่อง
+            ext = profileImage.split('.').pop()?.toLowerCase() || 'jpg';
+            base64 = await FileSystem.readAsStringAsync(profileImage, { encoding: 'base64' });
+          }
 
-        // 🌟 ดึง Public URL มาใช้
-        const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(fileName);
-        finalImageUrl = publicUrl;
+          const fileName = `${sessionUser.id}/profile_${Date.now()}.${ext}`;
+          
+          // อัปโหลดเข้า Storage Bucket "picture"
+          const { error: uploadError } = await supabase.storage
+            .from("picture")
+            .upload(fileName, decode(base64), {
+              contentType: `image/${ext}`,
+              upsert: true,
+            });
+
+          if (uploadError) throw uploadError;
+
+          // ดึง Public URL มาใช้
+          const { data: { publicUrl } } = supabase.storage.from("picture").getPublicUrl(fileName);
+          finalImageUrl = publicUrl;
+        } catch (imgError) {
+          console.error("Image Upload Error:", imgError);
+          // ถ้าโหลดรูปพังก็ปล่อยผ่านไปใช้ UI Avatar แทน
+          finalImageUrl = null;
+        }
       }
 
-      // ถ้าไม่มีรูปเลย ให้ใช้ UI Avatars
+      // ถ้าไม่มีรูป ให้ใช้ UI Avatars
       if (!finalImageUrl) {
         finalImageUrl = `https://ui-avatars.com/api/?name=${username}&background=random`;
       }
 
-      // 3. 💾 Upsert ลงตาราง users (ใช้ชื่อคอลัมน์ให้ตรงกับ Schema)
+      // 3. 💾 Upsert ลงตาราง users
       const { error: dbError } = await supabase.from("users").upsert({
         id: sessionUser.id,
         email: sessionUser.email,
         username: username,
         handle: handle,
         password_hash: isGoogleLogin ? "google_oauth_managed" : "supabase_managed",
-        profile_image_url: finalImageUrl, // 🌟 ตรวจสอบว่าใน DB ชื่อคอลัมน์นี้หรือไม่
+        profile_image_url: finalImageUrl,
         is_online: true,
         last_active: new Date(),
         updated_at: new Date()
-      }, { onConflict: 'id' }); // บังคับว่าถ้า ID ซ้ำให้ Update
+      }, { onConflict: 'id' }); 
 
       if (dbError) throw dbError;
 
-      // 4. อัปเดต Auth Metadata (เพื่อให้ตอนดึง session ใหม่รูปเปลี่ยนตาม)
+      // 4. อัปเดต Auth Metadata 
       await supabase.auth.updateUser({
         data: {
-          avatar_url: finalImageUrl,
+          picture: finalImageUrl,
           full_name: username
         }
       });
@@ -150,7 +166,6 @@ export default function CompleteProfileScreen() {
 
   return (
     <View className="flex-1 bg-[#F5F3FF] px-6 pt-24">
-      {/* UI ส่วนที่เหลือเหมือนเดิม... */}
       <Text className="text-3xl font-extrabold text-purple-800 mb-2">ยินดีต้อนรับ!</Text>
       
       <View className="items-center mb-8 mt-6">

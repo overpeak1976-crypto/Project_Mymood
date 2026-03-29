@@ -13,4 +13,7 @@ router.get('/search/:handle', userController.searchByHandle);
 router.post('/add-friend', authenticate, userController.addFriend);
 
 router.put('/accept-friend', authenticate, userController.acceptFriend);
+
+router.get('/my-top-genres', authenticate, userController.getMyTopGenres);
+
 export default router;

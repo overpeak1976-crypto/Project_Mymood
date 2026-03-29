@@ -3,8 +3,9 @@ import { Text, View, ActivityIndicator, Image, ScrollView, TouchableOpacity, Tex
 import { supabase } from "../../../lib/supabase";
 import { Sparkles, Flame, Sparkle, Headphones } from 'lucide-react-native'; // 🌟 เพิ่มไอคอน Headphones
 import { useAudio } from '../../../context/AudioContext';
-
 import MiniPlayer from "../../../components/MiniPlayer";
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function HomeScreen() {
   const [profile, setProfile] = useState<any>(null);
@@ -14,6 +15,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { playSong } = useAudio();
+  const [topGenres, setTopGenres] = useState<{ name: string, count: number }[]>([]);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -22,7 +24,17 @@ export default function HomeScreen() {
       setLoading(false);
     };
     loadInitialData();
+    loadStats();
   }, []);
+
+  const loadStats = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${BACKEND_URL}/api/users/my-top-genres`, {
+      headers: { 'Authorization': `Bearer ${session?.access_token}` }
+    });
+    const data = await res.json();
+    setTopGenres(data.topGenres);
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -112,7 +124,7 @@ export default function HomeScreen() {
 
   const handlePlayAndNavigate = async (song: any, currentPlaylist: any[]) => {
     if (playSong) {
-      playSong(song, currentPlaylist); 
+      playSong(song, currentPlaylist);
     }
   };
 
@@ -126,7 +138,7 @@ export default function HomeScreen() {
 
   return (
     <View className="flex-1 bg-[#F5F3FF]">
-      <ScrollView 
+      <ScrollView
         className="flex-1"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8B5CF6" colors={['#8B5CF6']} />
@@ -174,19 +186,19 @@ export default function HomeScreen() {
                 <Headphones color="#8B5CF6" size={24} className="mr-2" />
                 <Text className="text-xl font-bold text-gray-800">เพื่อนกำลังฟัง</Text>
               </View>
-              
+
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
                 {friendsActivity.map((activity, index) => (
                   <TouchableOpacity
                     key={index}
                     className="mr-4 bg-white rounded-3xl p-3 border border-purple-100 shadow-sm w-48"
-                    onPress={() => handlePlayAndNavigate(activity.song, friendsActivity.map(a => a.song))} 
+                    onPress={() => handlePlayAndNavigate(activity.song, friendsActivity.map(a => a.song))}
                   >
                     {/* ข้อมูลเพื่อน */}
                     <View className="flex-row items-center mb-3">
                       <View className="relative">
-                        <Image 
-                          source={{ uri: activity.friend.profile_image_url || 'https://ui-avatars.com/api/?name=U' }} 
+                        <Image
+                          source={{ uri: activity.friend.profile_image_url || 'https://ui-avatars.com/api/?name=U' }}
                           className="w-8 h-8 rounded-full"
                         />
                         <View className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full" />
@@ -218,7 +230,7 @@ export default function HomeScreen() {
             <Sparkle color="#8B5CF6" size={24} className="mr-2" />
             <Text className="text-xl font-bold text-gray-800">เพลงใหม่ล่าสุด</Text>
           </View>
-          
+
           {newSongs.length === 0 ? (
             <Text className="text-gray-500 text-center py-4">ยังไม่มีเพลงในระบบ</Text>
           ) : (
@@ -227,7 +239,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   key={song.id}
                   className="mr-5"
-                  onPress={() => handlePlayAndNavigate(song, newSongs)} 
+                  onPress={() => handlePlayAndNavigate(song, newSongs)}
                 >
                   <Image
                     source={{ uri: song.cover_image_url }}
@@ -256,11 +268,11 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   key={`pop-${song.id}`}
                   className="mr-5"
-                  onPress={() => handlePlayAndNavigate(song, popularSongs)} 
+                  onPress={() => handlePlayAndNavigate(song, popularSongs)}
                 >
                   <Image
                     source={{ uri: song.cover_image_url }}
-                    className="w-32 h-32 rounded-full bg-gray-200 shadow-sm" 
+                    className="w-32 h-32 rounded-full bg-gray-200 shadow-sm"
                   />
                   <Text className="font-bold text-gray-800 mt-3 text-base w-32 text-center" numberOfLines={1}>
                     {song.title}
@@ -276,10 +288,8 @@ export default function HomeScreen() {
           <View className="h-24" />
         </View>
       </ScrollView>
-
       {/* Mini Player */}
       <MiniPlayer />
-      
     </View>
   );
 }

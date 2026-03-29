@@ -11,10 +11,6 @@ export const adminController = {
       today.setHours(0, 0, 0, 0);
       const todayISO = today.toISOString();
 
-      // 2. Query ดึงข้อมูลจาก Supabase
-      const { count: totalUsers } = await supabase.from('users').select('*', { count: 'exact', head: true });
-      const { count: totalSongs } = await supabase.from('songs').select('*', { count: 'exact', head: true });
-
       // 🌟 3. ข้อมูลใหม่ที่คุณขอมา
       const { count: onlineUsers } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('is_online', true);
       const { count: todayNewUsers } = await supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', todayISO);
@@ -106,27 +102,28 @@ export const adminController = {
   // 4. ดึงรายชื่อเพลงทั้งหมดแบบละเอียด
   async getAllSongs(req: AuthRequest, res: Response) {
     try {
-      // ชี้เป้าไปที่ songs_uploaded_by_fkey ตามที่ Error แนะนำเป๊ะๆ
-      const { data, error } = await supabase.from('songs').select(`
-        id, title, artist, cover_image_url, audio_file_url, created_at,
-        users!songs_uploaded_by_fkey (username, handle)
-      `).order('created_at', { ascending: false });
+      // 1. ดึงทุกคอลัมน์ (*) และดึง handle ของคนอัปโหลดมาด้วย
+      const { data, error } = await supabase
+        .from('songs')
+        .select(`*, uploader:uploaded_by(handle)`)
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error("Supabase Error (getAllSongs):", error);
         throw error;
       }
 
-      // แปลงชื่อ object จาก 'users' เป็น 'uploader' เพื่อให้หน้า Frontend ใช้งานต่อได้
-      const formattedSongs = data.map((song: any) => ({
-        ...song,
-        uploader: song.users
-      }));
+      // 🌟 2. ลองปริ้นท์ข้อมูลเพลงแรกดูใน Terminal ของ Backend ว่ามันมี bpm, genre ติดมาไหม!
+      if (data && data.length > 0) {
+        console.log("📦 ข้อมูลที่ดึงได้จาก DB (เพลงแรก):", data[0]);
+      }
 
-      res.status(200).json(formattedSongs);
+      // 3. ส่งข้อมูลกลับไปเลย ไม่ต้อง map อะไรทั้งสิ้น!
+      res.status(200).json(data);
+      
     } catch (error: any) {
       console.error("🚨 ERROR [getAllSongs]:", error.message);
       res.status(500).json({ error: error.message });
     }
-  },
+  }
 };

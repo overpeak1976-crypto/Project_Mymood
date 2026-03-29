@@ -78,7 +78,7 @@ export const aiService = {
   },
 
   // 🌟 2. สร้างสมอง AI (ตอนอัปโหลด): สร้าง Tags โครงสร้างเดียวกับตอนค้นหาเป๊ะๆ!
-  async generateSuperContext(title: string, artist: string, bpm: number, key: string, scale: string, energy: number, danceability: number): Promise<string> {
+ async generateSuperContext(title: string, artist: string, bpm: number, key: string, scale: string, energy: number, danceability: number): Promise<{ superContext: string, genre: string }> {
     try {
       const prompt = `You are an Expert AI Music Profiler. 
       Song details: "${title}" by "${artist}"
@@ -95,24 +95,43 @@ export const aiService = {
       5. SITUATION & ACTIVITY: Generate 3-4 keywords for the perfect real-life scenario or weather for this song (e.g., late night drive, rainy day, workout, party, chilling by the beach).
 
       CRITICAL RULES:
-      - NO sentences, NO paragraphs. ONLY a flat, comma-separated list of keywords.
-      - ENTIRELY IN ENGLISH. NO THAI CHARACTERS ALLOWED.
-      - DO NOT use labels like "Genre:" or "Mood:" in your output. Output only the raw words.
+    - You MUST output ONLY a valid JSON object. No extra text or markdown blocks.
+    - The JSON object must have exactly two keys: "genre" and "superContext".
+    - "genre": A single primary music genre (e.g., "Pop", "Rock", "Hip-Hop", "R&B", "Indie", "Jazz").
+    - "superContext": A flat, comma-separated list of keywords including title, artist, genres, musicality, mood, and situations.
 
-      Expected Output Format:
-      ${title}, ${artist}, [Genres], [Musicality/Tempo Phrases], [Mood Synonyms], [Lyrical Themes], [Situations/Activities]`;
+    Expected JSON Format:
+    {
+      "genre": "Pop",
+      "superContext": "${title}, ${artist}, [Genres], [Musicality Phrases], [Mood Synonyms], [Situations]"
+    }`;
 
       const response = await ai.models.generateContent({
-        model: 'gemma-3-27b-it',
-        contents: prompt,
-      });
+      model: 'gemma-3-27b-it',
+      contents: prompt,
+    });
 
-      return response.text ? response.text.trim() : `${title}, ${artist}, bpm ${bpm}`;
-    } catch (error) {
-      console.error("❌ Gemini Super Context Error:", error);
-      return `${title}, ${artist}, bpm ${bpm}`;
+    const text = response.text ? response.text.trim() : '{}';
+    
+    // ดักจับกรณี AI เผลอส่ง Markdown ```json ... ``` กลับมา
+    const cleanJsonStr = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+    try {
+      const parsed = JSON.parse(cleanJsonStr);
+      return {
+        genre: parsed.genre || "Unknown",
+        superContext: parsed.superContext || `${title}, ${artist}, bpm ${bpm}`
+      };
+    } catch (parseError) {
+      console.error("❌ Parse JSON Error from AI:", cleanJsonStr);
+      return { genre: "Unknown", superContext: `${title}, ${artist}, bpm ${bpm}` };
     }
-  },
+
+  } catch (error) {
+    console.error("❌ Gemini Super Context Error:", error);
+    return { genre: "Unknown", superContext: `${title}, ${artist}, bpm ${bpm}` };
+  }
+},
   async generatePlaylistMetadata(userPrompt: string, songs: any[]): Promise<{ title: string, description: string }> {
     try {
       // ดึงแค่ชื่อเพลงและศิลปินมาให้ Gemini ดู

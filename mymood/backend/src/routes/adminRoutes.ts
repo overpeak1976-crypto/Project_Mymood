@@ -6,10 +6,12 @@ import { adminSongController } from '../../../backend/src/controllers/admin/admi
 
 const router = Router();
 
-// สังเกตว่าเราใช้ authenticate ดักไว้ด้วย เพื่อให้แน่ใจว่าคนเรียก API นี้ต้องล็อกอิน
-router.get('/stats', authenticate, isAdmin, adminStatsController.getDashboardStats);
 router.delete('/songs/:songId', authenticate, isAdmin, adminSongController.deleteSong);
-router.get('/users', authenticate, isAdmin, adminUserController.getAllUsers);
 router.get('/songs', authenticate, isAdmin, adminSongController.getAllSongs);
+
+router.get('/stats', authenticate, isAdmin, adminStatsController.getDashboardStats);
+
+router.get('/users', authenticate, isAdmin, adminUserController.getAllUsers);
+router.post('/users/:id/message', authenticate, isAdmin, adminUserController.sendMessageToUser);
 
 export default router;

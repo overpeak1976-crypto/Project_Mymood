@@ -31,14 +31,14 @@ export const songController = {
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
       // เช็คว่ามีส่งไฟล์เสียงมาด้วยไหม (จำเป็นต้องมี)
-      if (!files || !files['file']) {
+      if (!files || !files['audio']) {
         return res.status(400).json({ error: "ไม่พบไฟล์เพลง กรุณาแนบไฟล์ .mp3 มาด้วยครับ" });
       }
       if (!files['cover_image']) {
         return res.status(400).json({ error: "กรุณาแนบรูปปกเพลงมาด้วยครับ" });
       }
       // แยกไฟล์ออกมาเตรียมไว้
-      const audioFile = files['file'][0];
+      const audioFile = files['audio'][0];
       const coverImageFile = files['cover_image'][0];
 
       const localFilePath = audioFile.path;
@@ -84,7 +84,7 @@ export const songController = {
       const finalAudioUrl = await cloudinaryService.uploadAudio(localFilePath, 'mymood_audio');
       console.log(`✅ อัปโหลดไฟล์เสียงสำเร็จ! URL: ${finalAudioUrl}`);
       // 3. วิเคราะห์คลื่นเสียงดนตรี (จะได้ค่าทั้ง 5 ตัวมา)
-      
+
 
       // 3. ระบบจัดการอัลบั้ม (ถ้าผู้ใช้ส่งชื่ออัลบั้มมาด้วย)
       let finalAlbumId = null;
@@ -116,36 +116,9 @@ export const songController = {
         }
       }
 
-      // 4. บันทึกข้อมูลเพลงลงตาราง songs (เก็บข้อมูลเชิงลึกทั้งหมด + รูปลง Database)
-      console.log("💾 กำลังบันทึกข้อมูลเพลงลง Database...");
-      const { data: songData, error: songError } = await supabase
-        .from('songs')
-        .insert([{
-          title,
-          artist, // เก็บ Text ไว้เหมือนเดิมกันแอปพัง
-          artist_id: finalArtistId, // 👈 โยงความสัมพันธ์ไปหาตารางศิลปิน!
-          album_id: finalAlbumId,   // 👈 โยงความสัมพันธ์ไปหาตารางอัลบั้ม!
-          uploaded_by: req.user.id,
-          audio_file_url: finalAudioUrl,
-          cover_image_url: coverImageUrl,
-          bpm: audioStats.bpm,
-          danceability: audioStats.danceability,
-          music_key: audioStats.key,
-          music_scale: audioStats.scale,
-          energy: audioStats.energy,
-          duration_seconds: durationSeconds
-        }])
-        .select()
-        .single();
-
-      if (songError) {
-        console.error("Supabase Insert Song Error:", songError);
-        throw songError;
-      }
-
-      // 🌟🌟 5. ท่าไม้ตายใหม่! ให้ Gemini แต่งประโยค Super Context 🌟🌟
-      console.log("--- กำลังให้ Gemini วิเคราะห์และแต่งเรื่องราวของเพลง ---");
-      const superContextForAI = await aiService.generateSuperContext(
+      // 🌟 4. ให้ AI วิเคราะห์ก่อนบันทึกลงฐานข้อมูล (ย้ายขึ้นมาตรงนี้)
+      console.log("--- 🤖 กำลังให้ Gemini วิเคราะห์และแต่งเรื่องราวของเพลง ---");
+      const aiAnalysis = await aiService.generateSuperContext(
         title,
         artist,
         audioStats.bpm,
@@ -154,18 +127,46 @@ export const songController = {
         audioStats.energy,
         audioStats.danceability
       );
+      console.log("👉 แนวเพลงที่ AI คิดได้:", aiAnalysis.genre);
+      console.log("👉 ประโยค Super Context:", aiAnalysis.superContext);
 
-      console.log("👉 ประโยคที่จะฝังลงสมอง AI คือ:\n", superContextForAI);
+      // 🌟 5. บันทึกข้อมูลเพลงลงตาราง songs (เก็บข้อมูลเชิงลึกทั้งหมด + รูป + แนวเพลง ลง Database)
+      console.log("💾 กำลังบันทึกข้อมูลเพลงลง Database...");
+      const { data: songData, error: songError } = await supabase
+        .from('songs')
+        .insert([{
+          title,
+          artist,
+          artist_id: finalArtistId,
+          album_id: finalAlbumId,
+          uploaded_by: req.user.id,
+          audio_file_url: finalAudioUrl,
+          cover_image_url: coverImageUrl,
+          bpm: audioStats.bpm,
+          danceability: audioStats.danceability,
+          music_key: audioStats.key,
+          music_scale: audioStats.scale,
+          energy: audioStats.energy,
+          duration_seconds: durationSeconds,
+          genre: aiAnalysis.genre // <--- 🌟 ยัดแนวเพลงที่ AI ให้มาตรงนี้!
+        }])
+        .select('id')
+        .single();
 
-      // 6. แปลงประโยค Super Context เป็นตัวเลข Vector
-      const embedding = await aiService.generateEmbedding(superContextForAI);
+      if (songError) {
+        console.error("Supabase Insert Song Error:", songError);
+        throw songError;
+      }
 
-      // 7. บันทึก Vector ลงตาราง song_vectors
+      // 🌟 6. แปลงประโยค Super Context เป็นตัวเลข Vector
+      const embedding = await aiService.generateEmbedding(aiAnalysis.superContext);
+
+      // 🌟 7. บันทึก Vector ลงตาราง song_vectors
       const { error: vectorError } = await supabase
         .from('song_vectors')
         .insert([{
           song_id: songData.id,
-          mood_keywords: superContextForAI, // เก็บประโยคเต็มๆ ไว้ให้ดูง่ายๆ
+          mood_keywords: aiAnalysis.superContext, // เก็บประโยคเต็มๆ ไว้ด้วย
           embedding: `[${embedding.join(',')}]`
         }]);
 
@@ -173,7 +174,6 @@ export const songController = {
         console.error("Supabase Insert Vector Error:", vectorError);
         throw vectorError;
       }
-
       res.status(201).json({ message: "อัปโหลดเพลง รูปปก และสร้าง AI Vector สำเร็จ!", song: songData });
     } catch (error: any) {
       console.error("🚨 Upload Route Error:", error);
@@ -181,12 +181,12 @@ export const songController = {
     } finally {
       // ดึงไฟล์จาก req โดยตรงเพื่อป้องกันปัญหาตัวแปร files มองไม่เห็น
       const uploadedFiles = req.files as { [fieldname: string]: Express.Multer.File[] };
-      
+
       // 🧹 เคลียร์ขยะ: ลบไฟล์เสียงที่พักไว้ชั่วคราวทิ้ง
       if (uploadedFiles && uploadedFiles['file'] && fs.existsSync(uploadedFiles['file'][0].path)) {
         fs.unlinkSync(uploadedFiles['file'][0].path);
       }
-      
+
       // 🧹 เคลียร์ขยะ: ลบไฟล์รูปปกที่พักไว้ชั่วคราวทิ้ง
       if (uploadedFiles && uploadedFiles['cover_image'] && fs.existsSync(uploadedFiles['cover_image'][0].path)) {
         fs.unlinkSync(uploadedFiles['cover_image'][0].path);
@@ -228,6 +228,73 @@ export const songController = {
 
     } catch (error: any) {
       console.error("🚨 Search AI Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+  async reanalyzeSong(req: AuthRequest, res: Response) {
+    try {
+      const { id } = req.params;
+
+      // 1. ดึงข้อมูลเพลงเดิมขึ้นมา
+      const { data: song, error: fetchError } = await supabase
+        .from('songs')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (fetchError || !song) return res.status(404).json({ error: "ไม่พบข้อมูลเพลง" });
+
+      // 2. โยนให้ Gemini วิเคราะห์ใหม่ (ถ้าค่า bpm, key ไม่มี ให้ใช้ค่า default ไปก่อน)
+      console.log(`🤖 แอดมินสั่ง Re-analyze เพลง: ${song.title}`);
+      const aiAnalysis = await aiService.generateSuperContext(
+        song.title,
+        song.artist,
+        song.bpm ,
+        song.music_key ,
+        song.music_scale ,
+        song.energy ,
+        song.danceability
+      );
+
+      // 3. อัปเดตแนวเพลง (Genre) ในตาราง songs
+      const { error: updateError } = await supabase
+        .from('songs')
+        .update({ genre: aiAnalysis.genre })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      // 4. แปลงคำเป็น Vector
+      const embedding = await aiService.generateEmbedding(aiAnalysis.superContext);
+
+      // 5. เช็คว่าเคยมี Vector หรือยัง (เพื่อเลือกว่าจะ Update หรือ Insert)
+      const { data: existingVector } = await supabase
+        .from('song_vectors')
+        .select('id')
+        .eq('song_id', id)
+        .maybeSingle();
+
+      if (existingVector) {
+        await supabase
+          .from('song_vectors')
+          .update({
+            mood_keywords: aiAnalysis.superContext,
+            embedding: `[${embedding.join(',')}]`
+          })
+          .eq('song_id', id);
+      } else {
+        await supabase
+          .from('song_vectors')
+          .insert([{
+            song_id: id,
+            mood_keywords: aiAnalysis.superContext,
+            embedding: `[${embedding.join(',')}]`
+          }]);
+      }
+
+      res.status(200).json({ message: "อัปเดตข้อมูล AI สำเร็จ!", genre: aiAnalysis.genre });
+    } catch (error: any) {
+      console.error("❌ Reanalyze Error:", error);
       res.status(500).json({ error: error.message });
     }
   }

@@ -65,5 +65,38 @@ export const userController = {
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
+  },
+  // เพิ่มฟังก์ชันนี้ใน userController
+async getMyTopGenres(req: AuthRequest, res: Response) {
+  try {
+    const myId = req.user.id;
+
+    // Query นี้จะไปนับ Genre ที่ซ้ำกันมากที่สุด 5 อันดับแรก
+    const { data, error } = await supabase
+      .from('play_history')
+      .select(`
+        song:songs(genre)
+      `)
+      .eq('user_id', myId);
+
+    if (error) throw error;
+
+    // นำข้อมูลมานับจำนวน (Count) แต่ละแนวเพลง
+    const genreCounts: { [key: string]: number } = {};
+    data.forEach((item: any) => {
+      const g = item.song?.genre || 'Unknown';
+      genreCounts[g] = (genreCounts[g] || 0) + 1;
+    });
+
+    // เรียงลำดับจากมากไปน้อย
+    const sortedGenres = Object.entries(genreCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5); // เอาแค่ Top 5
+
+    res.status(200).json({ topGenres: sortedGenres });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
+}
 };
