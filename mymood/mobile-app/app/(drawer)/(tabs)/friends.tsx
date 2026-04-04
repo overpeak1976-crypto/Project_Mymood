@@ -5,7 +5,7 @@ import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, ActivityInd
 import { Search, UserPlus, Check, X, ChevronRight, Users, Send } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase"; 
 
-const BACKEND_URL = "http://192.168.1.37:8080"; 
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function FriendsScreen() {
   const [searchText, setSearchText] = useState("");

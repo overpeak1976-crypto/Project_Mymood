@@ -1,11 +1,13 @@
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import { View, Text, Image, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { DrawerActions } from "@react-navigation/native";
 import React, { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 
 export default function TabLayout() {
+
+    const router = useRouter();
+    
     const [picture, setPicture] = useState<string | null>(null);
     const [initial, setInitial] = useState<string>("?");
 
@@ -55,21 +57,34 @@ export default function TabLayout() {
             screenOptions={({ navigation }) => ({
                 headerStyle: { backgroundColor: "#EBE6FF", height: 100 },
                 tabBarStyle: { display: "none" },
-                // ☰ เปิด Drawer
+                //กดกลับ
                 headerLeft: () => (
-                    <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={{ marginLeft: 15 }}>
-                        <Ionicons name="menu" size={26} color="#7C3AED" />
-                    </TouchableOpacity>),
-                // 🎵 โลโก้ตรงกลาง
+                    <TouchableOpacity
+                        onPress={() => router.push("/setting")}
+                            style={{
+                            width: 40,
+                            height: 40,
+                            justifyContent: "center",
+                            alignItems: "center",
+                            marginLeft: 10,
+                        }}
+                        >
+                    <Ionicons name="chevron-back" size={22} color="#4C1D95" />
+                    </TouchableOpacity>
+                    ),
+                //โลโก้
                 headerTitle: () => (
-                    <Image source={require("../../../assets/images/logo_Mymood.png")} style={{ width: 120, height: 40 }} resizeMode="contain" />),
-                headerTitleAlign: "center",
+                    <Image source={require("../../../assets/images/logo_Mymood.png")} 
+                        style={{ width: 120, height: 40 }} 
+                        resizeMode="contain" />
+                    ),
+                    headerTitleAlign: "center",
 
-                // 🔍 ค้นหา + 👤 โปรไฟล์ (มุมขวาบน)
+                // ค้นหา + โปรไฟล์ 
                 headerRight: () => (
                     <View style={{ flexDirection: "row", alignItems: "center", marginRight: 15, gap: 15 }}>
                         <TouchableOpacity onPress={() => navigation.navigate("AIsearch")}>
-                            <Ionicons name="search" size={24} color="#7C3AED" />
+                        <Ionicons name="search" size={24} color="#7C3AED" />
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => navigation.navigate("profile")}>
                             {picture ? (
