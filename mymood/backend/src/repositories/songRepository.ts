@@ -105,30 +105,70 @@ export const songRepository = {
   },
 
   async searchSongsByVectorWithExclude(embeddingArray: number[], matchThreshold: number, matchCount: number, excludeIds: string[] = []) {
-    const embeddingStr = `[${embeddingArray.join(',')}]`;
-    const overfetchCount = matchCount + excludeIds.length + 20;
+    try {
+      console.log(`🔍 [Repository] Vector search: threshold=${matchThreshold}, limit=${matchCount}, exclude=${excludeIds.length}`);
+      
+      const embeddingStr = `[${embeddingArray.join(',')}]`;
+      const overfetchCount = matchCount + excludeIds.length + 20;
 
-    if (!excludeIds || excludeIds.length === 0) {
-      return prisma.$queryRaw<any[]>`
-        SELECT * FROM match_songs(
-          ${embeddingStr}::vector,
-          ${matchThreshold}::float,
-          ${matchCount}::int
-        )
-      `;
-    }
+      if (!excludeIds || excludeIds.length === 0) {
+        console.log(`📊 Running match_songs RPC (no exclusions)...`);
+        const result = await prisma.$queryRaw<any[]>`
+          SELECT * FROM match_songs(
+            ${embeddingStr}::vector,
+            ${matchThreshold}::float,
+            ${matchCount}::int
+          )
+        `;
+        console.log(`✅ RPC returned ${result?.length || 0} songs`);
+        if (result && result.length > 0) {
+          console.log(`   First 3: ${result.slice(0, 3).map(s => s.title).join(", ")}`);
+        }
+        return result;
+      }
 
-    return prisma.$queryRaw<any[]>`
-      SELECT * FROM (
+      console.log(`📊 Running match_songs RPC with overfetch=${overfetchCount} to exclude ${excludeIds.length} songs...`);
+      const fullResult = await prisma.$queryRaw<any[]>`
         SELECT * FROM match_songs(
           ${embeddingStr}::vector,
           ${matchThreshold}::float,
           ${overfetchCount}::int
         )
-      ) AS matches
-      WHERE id NOT IN (${Prisma.join(excludeIds)})
-      LIMIT ${matchCount}::int
-    `;
+      `;
+      console.log(`   Overfetch got ${fullResult?.length || 0} songs before exclusion`);
+      
+      if (fullResult && fullResult.length > 0) {
+        const duplicateCount = fullResult.filter(s => excludeIds.includes(s.id)).length;
+        console.log(`   Found ${duplicateCount} duplicates to exclude`);
+      }
+      
+      const result = await prisma.$queryRaw<any[]>`
+        SELECT * FROM (
+          SELECT * FROM match_songs(
+            ${embeddingStr}::vector,
+            ${matchThreshold}::float,
+            ${overfetchCount}::int
+          )
+        ) AS matches
+        WHERE id NOT IN (${Prisma.join(excludeIds)})
+        LIMIT ${matchCount}::int
+      `;
+      console.log(`✅ After exclusion, returned ${result?.length || 0} songs`);
+      if (result && result.length > 0) {
+        console.log(`   First 3: ${result.slice(0, 3).map(s => s.title).join(", ")}`);
+      }
+      return result;
+    } catch (error: any) {
+      console.error(`❌ [Repository] Vector search error:`, error.message);
+      console.error(`Stack:`, error.stack);
+      throw error;
+    }
+  },
+
+  async getAllSongsCount() {
+    const count = await prisma.songs.count();
+    console.log(`📊 Total songs in database: ${count}`);
+    return count;
   },
 
   async findMyUploads(userId: string) {

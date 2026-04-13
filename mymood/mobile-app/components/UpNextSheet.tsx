@@ -1,4 +1,4 @@
-import React, { forwardRef, useMemo, useState } from 'react';
+import React, { forwardRef, useMemo, useState, useCallback } from 'react';
 import { View, Text, Image, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
 import BottomSheet, { BottomSheetFlatList } from '@gorhom/bottom-sheet';
 import { Sparkles, MoreVertical, Play, Pause, SkipForward } from 'lucide-react-native';
@@ -11,11 +11,42 @@ const UpNextSheet = forwardRef<BottomSheet, {}>((props, ref) => {
   const { queue, currentSong, isPlaying, togglePlayPause, playNext, playSong, activeAiPrompt, isAiGenerating, startAiRadio } = useAudio();
   const [prompt, setPrompt] = useState('');
 
-  const handleGenerateAI = () => {
-    if (!prompt || isAiGenerating) return;
-    startAiRadio(prompt);
-    setPrompt('');
-  };
+  const handleGenerateAI = useCallback(async () => {
+    // Validate prompt
+    const trimmedPrompt = prompt.trim();
+    if (!trimmedPrompt) {
+      Alert.alert('บอกอารมณ์ของคุณ', 'กรุณาใส่อารมณ์หรือสไตล์เพลงที่ต้องการเพื่อให้ AI สร้างเพลย์ลิสต์ที่เหมาะกับคุณ');
+      return;
+    }
+
+    if (trimmedPrompt.length < 3) {
+      Alert.alert('ข้อความสั้นเกินไป', 'กรุณาใส่อารมณ์อย่างน้อย 3 ตัวอักษร');
+      return;
+    }
+
+    if (trimmedPrompt.length > 100) {
+      Alert.alert('ข้อความยาวเกินไป', 'กรุณาใส่อารมณ์ไม่เกิน 100 ตัวอักษร');
+      return;
+    }
+
+    if (isAiGenerating) {
+      Alert.alert('กำลังประมวลผล', 'AI กำลังสร้างเพลย์ลิสต์อยู่ โปรดรอสักครู่');
+      return;
+    }
+
+    try {
+      console.log('🎵 Starting AI Radio with prompt:', trimmedPrompt);
+      await startAiRadio(trimmedPrompt);
+      setPrompt('');
+      Alert.alert('สำเร็จ! 🎶', `กำลังเล่นเพลงตามอารมณ์: "${trimmedPrompt}"`);
+    } catch (error: any) {
+      console.error('❌ AI Radio Error:', error);
+      Alert.alert(
+        'เกิดข้อผิดพลาด',
+        error.message || 'ไม่สามารถสร้างเพลย์ลิสต์ได้ โปรดลองอีกครั้ง'
+      );
+    }
+  }, [prompt, isAiGenerating, startAiRadio]);
 
   const renderItem = ({ item, index }: { item: Song; index: number }) => {
     const isPlayingThis = currentSong?.id === item.id;
@@ -87,21 +118,28 @@ const UpNextSheet = forwardRef<BottomSheet, {}>((props, ref) => {
           <View className="flex-row items-center bg-gray-900/40 border border-gray-700/20 rounded-2xl p-2 px-4 shadow-sm">
             <Sparkles color="#7C3AED" size={20} />
             <TextInput
-              placeholder={isAiGenerating ? "AI is curating your vibe..." : "Tell me your vibe..."}
+              placeholder={isAiGenerating ? "✨ AI is curating your vibe..." : "Tell me your vibe..."}
               placeholderTextColor="#6B7280"
               editable={!isAiGenerating}
               className="flex-1 ml-3 text-white h-10 font-medium"
               value={prompt}
               onChangeText={setPrompt}
               onSubmitEditing={handleGenerateAI}
+              maxLength={100}
             />
             {isAiGenerating ? (
-              <ActivityIndicator color="#7C3AED" size="small" className="mr-2" />
-            ) : prompt.length > 0 && (
-              <TouchableOpacity onPress={handleGenerateAI} className="bg-purple-600 px-3 py-1.5 rounded-full shadow-lg shadow-purple-900/50">
-                <Text className="text-white text-xs font-semibold">Submit</Text>
+              <View className="flex-row items-center mr-2">
+                <ActivityIndicator color="#7C3AED" size="small" />
+                <Text className="text-purple-400 text-xs font-semibold ml-2">Curating...</Text>
+              </View>
+            ) : prompt.trim().length > 0 ? (
+              <TouchableOpacity 
+                onPress={handleGenerateAI} 
+                className="bg-purple-600 px-3 py-1.5 rounded-full shadow-lg shadow-purple-900/50 active:bg-purple-700"
+              >
+                <Text className="text-white text-xs font-semibold">✨ Go</Text>
               </TouchableOpacity>
-            )}
+            ) : null}
           </View>
         </View>
 

@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { AppState, AppStateStatus } from "react-native";
 import { supabase } from "../lib/supabase";
 import { AudioProvider } from '../context/AudioContext';
+import { UIStateProvider } from '../context/UIStateContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
@@ -85,13 +86,15 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AudioProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(drawer)" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="player" options={{ presentation: 'fullScreenModal' }} />
-        </Stack>
-      </AudioProvider>
+      <UIStateProvider>
+        <AudioProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(drawer)" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="player" options={{ presentation: 'fullScreenModal' }} />
+          </Stack>
+        </AudioProvider>
+      </UIStateProvider>
     </GestureHandlerRootView>
   );
 }

@@ -20,11 +20,10 @@ export const likeRepository = {
   },
 
   async getLikedSongs(userId: string) {
-    return prisma.liked_songs.findMany({
+    const liked = await prisma.liked_songs.findMany({
       where: { user_id: userId },
       orderBy: { created_at: 'desc' },
-      select: {
-        created_at: true,
+      include: {
         songs: {
           select: {
             id: true,
@@ -37,5 +36,16 @@ export const likeRepository = {
         },
       },
     });
+
+    // Flatten the response: extract the song data from the nested structure
+    return liked.map(item => ({
+      id: item.songs?.id,
+      title: item.songs?.title,
+      artist: item.songs?.artist,
+      cover_image_url: item.songs?.cover_image_url,
+      audio_file_url: item.songs?.audio_file_url,
+      duration_seconds: item.songs?.duration_seconds,
+      liked_at: item.created_at,
+    })).filter(item => item.id); // Filter out any null entries
   },
 };

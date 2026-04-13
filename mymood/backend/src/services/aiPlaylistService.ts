@@ -5,33 +5,48 @@ import { aiService } from './aiService';
 export const aiPlaylistService = {
   async generatePlaylist(prompt: string, limit: number = 5, excludeIds: string[] = []) {
     if (!prompt) throw new Error('Prompt is required');
-    console.log(`🎧 Generating playlist for: "${prompt}"`);
+    console.log(`🎧 Step 1: Generating playlist for: "${prompt}"`);
 
-    // 1. Optimize prompt with Gemini
-    const optimizedPrompt = await aiService.optimizeSearchPrompt(prompt);
+    try {
+      // 1. Optimize prompt with Gemini
+      console.log(`📝 Step 2: Optimizing prompt with AI...`);
+      const optimizedPrompt = await aiService.optimizeSearchPrompt(prompt);
+      console.log(`✅ Step 2 Done: "${optimizedPrompt.substring(0, 60)}..."`);
 
-    // 2. Generate embedding
-    const queryEmbedding = await aiService.generateEmbedding(optimizedPrompt);
+      // 2. Generate embedding
+      console.log(`🔢 Step 3: Generating vector embedding...`);
+      const queryEmbedding = await aiService.generateEmbedding(optimizedPrompt);
+      console.log(`✅ Step 3 Done: Vector has ${queryEmbedding.length} dimensions`);
 
-    // 3. Vector search against DB
-    const matchedSongs = await songRepository.searchSongsByVectorWithExclude(queryEmbedding, 0.1, limit, excludeIds);
+      // 3. Vector search against DB
+      console.log(`🔍 Step 4: Searching database with vector (limit: ${limit}, exclude ${excludeIds.length} songs)...`);
+      const matchedSongs = await songRepository.searchSongsByVectorWithExclude(queryEmbedding, 0.1, limit, excludeIds);
+      console.log(`✅ Step 4 Done: Found ${matchedSongs?.length || 0} songs`);
 
-    if (!matchedSongs || matchedSongs.length === 0) {
-      return { playlist_name: null, ai_prompt_used: prompt, total_songs: 0, songs: [] };
+      if (!matchedSongs || matchedSongs.length === 0) {
+        console.log(`⚠️ No songs found for this mood`);
+        return { playlist_name: null, ai_prompt_used: prompt, total_songs: 0, songs: [] };
+      }
+
+      // 4. Generate playlist metadata
+      console.log(`✨ Step 5: Generating playlist metadata...`);
+      const metadata = await aiService.generatePlaylistMetadata(prompt, matchedSongs);
+      console.log(`✅ Step 5 Done: "${metadata.title}"`);
+
+      console.log(`✅ All steps completed successfully!`);
+
+      return {
+        title: metadata.title,
+        description: metadata.description,
+        ai_prompt_used: prompt,
+        total_songs: matchedSongs.length,
+        songs: matchedSongs,
+      };
+    } catch (error: any) {
+      console.error(`❌ Error in generatePlaylist: ${error.message}`);
+      console.error(`Stack: ${error.stack}`);
+      throw error;
     }
-
-    // 4. Generate playlist metadata
-    const metadata = await aiService.generatePlaylistMetadata(prompt, matchedSongs);
-
-    console.log(`✅ Playlist name: ${metadata.title}`);
-
-    return {
-      title: metadata.title,
-      description: metadata.description,
-      ai_prompt_used: prompt,
-      total_songs: matchedSongs.length,
-      songs: matchedSongs,
-    };
   },
 
   async savePlaylist(
@@ -64,5 +79,9 @@ export const aiPlaylistService = {
 
   async getMyPlaylists(userId: string) {
     return playlistRepository.getMyPlaylists(userId);
+  },
+
+  async getTotalSongsCount() {
+    return songRepository.getAllSongsCount();
   },
 };

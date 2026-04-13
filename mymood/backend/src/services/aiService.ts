@@ -24,24 +24,33 @@ export const aiService = {
 
   // 2. แปลงข้อความเป็น Vector (เปลี่ยนมาใช้ Local AI ฟรี 100%)
   async generateEmbedding(text: string): Promise<number[]> {
-    console.log("--- DEBUG: Generating Vector with Local AI (@xenova/transformers) ---");
     try {
+      console.log(`📥 Generating embedding for: "${text.substring(0, 50)}..."`);      
+      const startTime = Date.now();
+      
       // โหลดโมเดล AI ชื่อ all-MiniLM-L6-v2 (ครั้งแรกจะโหลดไฟล์ลงเครื่องนิดนึง ครั้งต่อไปจะไวมาก)
       // โมเดลนี้จะแปลงข้อความออกมาเป็นตัวเลข 384 มิติ
+      console.log('⏳ Loading Xenova transformer model...');
       const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+      console.log('✅ Model loaded');
 
       const output = await extractor(text, { pooling: 'mean', normalize: true });
-
-      // แปลงชนิดข้อมูลให้เป็น Array ปกติส่งกลับไป
-      return Array.from(output.data);
-    } catch (error) {
-      console.error("Error with Local AI:", error);
-      throw error;
+      const embedding = Array.from(output.data);
+      
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ Embedding generated (${elapsed}ms) - Vector size: ${embedding.length}`);
+      
+      return embedding;
+    } catch (error: any) {
+      console.error("❌ Embedding Error:", error.message || error);
+      throw new Error(`Embedding generation failed: ${error.message}`);
     }
   },
   // 🌟 1. ล่ามแปลภาษา (ตอนค้นหา): แปลงทุกอย่างให้เป็นโครงสร้าง Tags
   async optimizeSearchPrompt(userPrompt: string): Promise<string> {
     try {
+      console.log(`🔍 Optimizing search prompt: "${userPrompt}"`);
+      
       const prompt = `You are an Expert Music Search Engine AI. The user entered this search query in Thai: "${userPrompt}"
       
       Your job is to convert this query into a highly structured, comma-separated list of ENGLISH keywords tailored for a Semantic Vector Database.
@@ -69,10 +78,12 @@ export const aiService = {
       });
 
       const cleanResult = response.text ? response.text.trim() : userPrompt;
+      console.log(`✅ Optimized prompt: "${cleanResult.substring(0, 50)}..."`); 
       return cleanResult;
 
-    } catch (error) {
-      console.error("❌ Gemini Optimize Error:", error);
+    } catch (error: any) {
+      console.error("❌ Gemini Optimize Error:", error.message || error);
+      console.warn("⚠️ Falling back to original prompt");
       return userPrompt;
     }
   },
@@ -134,6 +145,8 @@ export const aiService = {
 },
   async generatePlaylistMetadata(userPrompt: string, songs: any[]): Promise<{ title: string, description: string }> {
     try {
+      console.log(`✨ Generating playlist metadata for ${songs.length} songs...`);
+      
       // ดึงแค่ชื่อเพลงและศิลปินมาให้ Gemini ดู
       const songList = songs.map(s => `- ${s.title} by ${s.artist}`).join('\n');
 
@@ -165,9 +178,12 @@ export const aiService = {
       const text = response.text ? response.text.trim() : '{}';
       // ตัด backticks (```json ... ```) ที่ AI ชอบแถมมาออก
       const cleanJson = text.replace(/```json/g, '').replace(/```/g, '');
-      return JSON.parse(cleanJson);
-    } catch (error) {
-      console.error("❌ Gemini Playlist Metadata Error:", error);
+      const metadata = JSON.parse(cleanJson);
+      console.log(`✅ Metadata generated: "${metadata.title}"`);
+      return metadata;
+    } catch (error: any) {
+      console.error("❌ Gemini Playlist Metadata Error:", error.message);
+      console.warn(`⚠️ Using fallback metadata`);
       return { title: "My Mood Playlist", description: "เพลย์ลิสต์ที่จัดเตรียมมาเพื่อคุณโดยเฉพาะ" };
     }
   }

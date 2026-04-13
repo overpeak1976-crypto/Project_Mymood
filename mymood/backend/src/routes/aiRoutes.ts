@@ -13,4 +13,6 @@ router.post('/save-playlist', authenticate, aiPlaylistController.savePlaylist);
 
 router.get('/my-playlists', authenticate, aiPlaylistController.getMyPlaylists);
 
+router.get('/diagnostics', aiPlaylistController.diagnostics);
+
 export default router;

@@ -76,7 +76,7 @@ export default function PlayerScreen() {
   const router = useRouter();
   const {
     currentSong, isPlaying, togglePlayPause, isLoading, seekTo, totalDuration,
-    currentTime, playNext, playPrevious, isShuffle, repeatMode, toggleShuffle, toggleRepeat
+    currentTime, playNext, playPrevious, isShuffle, isRepeat, toggleShuffle, toggleRepeat
   } = useAudio();
   const [isSliding, setIsSliding] = useState(false);
   const [sliderValue, setSliderValue] = useState(0);
@@ -92,7 +92,7 @@ export default function PlayerScreen() {
     Animated.loop(
       Animated.sequence([
         Animated.timing(breathingScale, {
-          toValue: 1.2,
+          toValue: 1.5,
           duration: 15000,
           useNativeDriver: true,
           easing: Easing.inOut(Easing.ease),
@@ -257,10 +257,8 @@ export default function PlayerScreen() {
           </BouncyButton>
 
           <BouncyButton onPress={toggleRepeat}>
-            {repeatMode === 'one' ? (
-              <Repeat1 color="#7C3AED" size={24} />
-            ) : repeatMode === 'all' ? (
-              <Repeat color="#7C3AED" size={24} />
+            {isRepeat ? (
+              <Repeat color="#7C3AED" size={24} style={{ opacity: 1 }} />
             ) : (
               <Repeat color="#FFF" size={24} style={{ opacity: 0.6 }} />
             )}
@@ -284,8 +282,8 @@ export default function PlayerScreen() {
 
       </View>
 
-      {/* Render Slide Up Sheet safely over everything (Absolute Z-Index natively) */}
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }} pointerEvents="box-none">
+      {/* BottomSheet Portal Container - Floats above player content */}
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, pointerEvents: 'box-none', zIndex: 50 }}>
         <UpNextSheet ref={sheetRef} />
       </View>
     </View>

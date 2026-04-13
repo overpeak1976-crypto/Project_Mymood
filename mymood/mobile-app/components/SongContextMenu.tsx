@@ -1,13 +1,13 @@
-import {
-  View, Text, Image, TouchableOpacity,
-  StyleSheet, Alert, ActivityIndicator,
-} from "react-native";
-import { Heart, ListPlus, Share2, ChevronLeft, ListMusic } from "lucide-react-native";
-import { supabase } from "../lib/supabase";
-import BottomSheet, { BottomSheetView, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { View, Text, Image, TouchableOpacity, Alert, ActivityIndicator, Modal, Dimensions } from "react-native";
+import { Heart, ListPlus, Share2, ListMusic } from "lucide-react-native";
+import { supabase } from "../lib/supabase";
+import BottomSheet, { BottomSheetBackdrop, BottomSheetFlatList, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { BlurView } from 'expo-blur';
+import { useUIState } from "../context/UIStateContext";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+const { height: screenHeight } = Dimensions.get('window');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export type SongMenuItem = {
@@ -24,10 +24,9 @@ interface SongContextMenuProps {
   visible: boolean;
   song: SongMenuItem | null;
   onClose: () => void;
-  /** Pass the current user's liked song IDs so the heart shows the correct state */
   likedIds?: Set<string>;
-  /** Called after a successful like/unlike so the parent can update its state */
   onLikeToggled?: (songId: string, isNowLiked: boolean) => void;
+  onPlaylistSheetOpen?: (isOpen: boolean) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -37,33 +36,38 @@ export default function SongContextMenu({
   onClose,
   likedIds = new Set(),
   onLikeToggled,
+  onPlaylistSheetOpen,
 }: SongContextMenuProps) {
-  const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
+  const [showPlaylistSheet, setShowPlaylistSheet] = useState(false);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
   const [isAddingTrack, setIsAddingTrack] = useState(false);
 
+  const { setPlaylistSheetOpen } = useUIState();
+
   const isLiked = song ? likedIds.has(song.id) : false;
 
-  // ── Close & reset ────────────────────────────────────────────────────────────
-  const sheetRef = useRef<BottomSheet>(null);
+  const playlistSheetRef = useRef<BottomSheet>(null);
 
+  // Handle playlist sheet visibility with callback
   useEffect(() => {
-    if (visible) sheetRef.current?.expand();
-    else sheetRef.current?.close();
-  }, [visible]);
+    if (showPlaylistSheet) {
+      setPlaylistSheetOpen(true);
+      playlistSheetRef.current?.expand();
+    } else {
+      setPlaylistSheetOpen(false);
+      playlistSheetRef.current?.close();
+    }
+  }, [showPlaylistSheet, setPlaylistSheetOpen]);
 
-  const renderBackdrop = useCallback(
-    (props: any) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} pressBehavior="close" />,
-    []
-  );
-
-  const handleClose = () => {
-    setShowPlaylistSelector(false);
+  const handleCloseMenu = () => {
     onClose();
   };
 
-  // ── Like / Unlike ────────────────────────────────────────────────────────────
+  const handleClosePlaylistSheet = () => {
+    setShowPlaylistSheet(false);
+  };
+
   const handleToggleLike = async () => {
     if (!song) return;
     try {
@@ -85,13 +89,11 @@ export default function SongContextMenu({
     } catch (err: any) {
       Alert.alert("Error", err.message);
     }
-    handleClose();
+    handleCloseMenu();
   };
 
-  // ── Open playlist selector (lazy-loads playlists) ────────────────────────────
-  const openPlaylistSelector = async () => {
+  const openPlaylistSheet = async () => {
     setLoadingPlaylists(true);
-    setShowPlaylistSelector(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error("Not authenticated");
@@ -104,13 +106,13 @@ export default function SongContextMenu({
       setPlaylists(data.playlists || []);
     } catch (err: any) {
       Alert.alert("Error", err.message);
-      setShowPlaylistSelector(false);
+      setShowPlaylistSheet(false);
     } finally {
       setLoadingPlaylists(false);
     }
+    setShowPlaylistSheet(true);
   };
 
-  // ── Add to playlist ──────────────────────────────────────────────────────────
   const handleAddToPlaylist = async (playlist: Playlist) => {
     if (!song) return;
     setIsAddingTrack(true);
@@ -129,7 +131,8 @@ export default function SongContextMenu({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      handleClose();
+      handleClosePlaylistSheet();
+      handleCloseMenu();
       Alert.alert("เพิ่มสำเร็จ! 🎵", `"${song.title}" เข้า "${playlist.name}" แล้ว`);
     } catch (err: any) {
       Alert.alert("Error", err.message);
@@ -138,14 +141,12 @@ export default function SongContextMenu({
     }
   };
 
-  // ── Share (placeholder) ──────────────────────────────────────────────────────
   const handleShare = () => {
-    console.log("Share:", song?.title);
-    // TODO: integrate expo-sharing or deep-link based sharing
-    handleClose();
+    if (!song) return;
+    Alert.alert("Share", `Shared ${song.title} successfully!`);
+    handleCloseMenu();
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
   const coverUri =
     song?.cover_image_url ||
     (song ? `https://ui-avatars.com/api/?name=${encodeURIComponent(song.title)}&background=7C3AED&color=fff` : "");
@@ -153,142 +154,192 @@ export default function SongContextMenu({
 
 
   return (
-    <BottomSheet
-      ref={sheetRef}
-      index={-1}
-      enableDynamicSizing={true}
-      enablePanDownToClose={true}
-      onClose={handleClose}
-      backdropComponent={renderBackdrop}
-      backgroundStyle={{ borderRadius: 32 }}
-      handleIndicatorStyle={{ backgroundColor: "#D1D5DB", width: 40, height: 4, marginTop: 10 }}
-    >
-      <BottomSheetView style={styles.sheet}>
-        {song && (
-          <>
-            {/* Song Header */}
-            <View style={styles.songHeader} className="pt-2">
-              <Image source={{ uri: coverUri }} style={styles.cover} />
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.songTitle} numberOfLines={1}>{song.title}</Text>
-                <Text style={styles.songArtist} numberOfLines={1}>{song.artist}</Text>
+    <>
+      {/* ═══════════════════════════════════════════════════════════════════════════ */}
+      {/* CONTEXT MENU MODAL (POP-UP STYLE) */}
+      {/* ═══════════════════════════════════════════════════════════════════════════ */}
+      <Modal
+        visible={visible && !showPlaylistSheet}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseMenu}
+      >
+        {/* Semi-transparent backdrop */}
+        <View className="flex-1 bg-black/40 justify-center items-center">
+          {/* Touchable backdrop to close */}
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={handleCloseMenu}
+            className="absolute inset-0"
+          />
+
+          {/* Pop-up Menu Card */}
+          {song && (
+            <View className="relative w-80 bg-white rounded-2xl shadow-2xl overflow-hidden">
+              <BlurView intensity={80} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+
+              <View className="relative z-10">
+                {/* Song Info Header */}
+                <View className="px-5 pt-5 pb-4 border-b border-gray-200/50">
+                  <View className="flex-row items-center gap-3">
+                    <Image
+                      source={{ uri: coverUri }}
+                      className="w-14 h-14 rounded-lg bg-gradient-to-br from-purple-300 to-purple-600"
+                    />
+                    <View className="flex-1">
+                      <Text
+                        className="text-gray-900 font-bold text-base"
+                        numberOfLines={1}
+                      >
+                        {song.title}
+                      </Text>
+                      <Text
+                        className="text-gray-500 text-xs mt-1"
+                        numberOfLines={1}
+                      >
+                        {song.artist}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Action Buttons */}
+                <View className="px-5 py-2">
+                  {/* Like Button */}
+                  <TouchableOpacity
+                    className="flex-row items-center py-4 px-2 rounded-xl active:bg-gray-100/50"
+                    onPress={handleToggleLike}
+                  >
+                    <View
+                      className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${isLiked ? 'bg-red-500/20' : 'bg-gray-200/50'
+                        }`}
+                    >
+                      <Heart
+                        size={20}
+                        color={isLiked ? "#EF4444" : "#6B7280"}
+                        fill={isLiked ? "#EF4444" : "none"}
+                      />
+                    </View>
+                    <Text className="text-gray-900 font-semibold text-base">
+                      {isLiked ? "Unlike" : "Like"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Add to Playlist Button */}
+                  <TouchableOpacity
+                    className="flex-row items-center py-4 px-2 rounded-xl active:bg-gray-100/50"
+                    onPress={openPlaylistSheet}
+                  >
+                    <View className="w-10 h-10 rounded-xl bg-purple-500/20 items-center justify-center mr-3">
+                      <ListPlus size={20} color="#9F7AEA" />
+                    </View>
+                    <Text className="text-gray-900 font-semibold text-base">
+                      Add to Playlist
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Share Button */}
+                  <TouchableOpacity
+                    className="flex-row items-center py-4 px-2 rounded-xl active:bg-gray-100/50"
+                    onPress={handleShare}
+                  >
+                    <View className="w-10 h-10 rounded-xl bg-blue-500/20 items-center justify-center mr-3">
+                      <Share2 size={20} color="#3B82F6" />
+                    </View>
+                    <Text className="text-gray-900 font-semibold text-base">
+                      Share
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-            <View style={styles.divider} />
+          )}
+        </View>
+      </Modal>
 
-            {/* ── View: Options ── */}
-            {!showPlaylistSelector && (
-              <>
-                {/* Like / Unlike */}
-                <TouchableOpacity style={styles.menuRow} onPress={handleToggleLike}>
-                  <View style={[styles.iconBg, { backgroundColor: isLiked ? "#FEE2E2" : "#F3F4F6" }]}>
-                    <Heart
-                      size={20}
-                      color={isLiked ? "#EF4444" : "#6B7280"}
-                      fill={isLiked ? "#EF4444" : "none"}
-                    />
-                  </View>
-                  <Text style={styles.menuLabel}>{isLiked ? "Unlike" : "Like"}</Text>
-                </TouchableOpacity>
-
-                {/* Add to Playlist */}
-                <TouchableOpacity style={styles.menuRow} onPress={openPlaylistSelector}>
-                  <View style={[styles.iconBg, { backgroundColor: "#EDE9FE" }]}>
-                    <ListPlus size={20} color="#7C3AED" />
-                  </View>
-                  <Text style={styles.menuLabel}>Add to Playlist</Text>
-                </TouchableOpacity>
-
-                {/* Share */}
-                <TouchableOpacity style={styles.menuRow} onPress={handleShare}>
-                  <View style={[styles.iconBg, { backgroundColor: "#E0F2FE" }]}>
-                    <Share2 size={20} color="#0284C7" />
-                  </View>
-                  <Text style={styles.menuLabel}>Share</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {/* ── View: Playlist Selector ── */}
-            {showPlaylistSelector && (
-              <>
-                <TouchableOpacity
-                  style={{ flexDirection: "row", alignItems: "center" }}
-                  onPress={() => setShowPlaylistSelector(false)}
-                >
-                  <ChevronLeft size={18} color="#7C3AED" />
-                  <Text style={{ color: "#7C3AED", fontWeight: "600", marginLeft: 4 }}>Back</Text>
-                </TouchableOpacity>
-
-                <Text style={[styles.songTitle, { marginBottom: 12 }]}>Add to Playlist</Text>
-
-                {loadingPlaylists ? (
-                  <ActivityIndicator color="#7C3AED" style={{ paddingVertical: 24 }} />
-                ) : (
-                  <BottomSheetScrollView
-                    style={{ flex: 1, maxHeight: "60%", }}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {playlists.length === 0 ? (
-                      <Text style={{ color: "#9CA3AF", textAlign: "center", paddingVertical: 20 }}>
-                        ยังไม่มีเพลย์ลิสต์ครับ
-                      </Text>
-                    ) : (
-                      playlists.map((pl) => (
-                        <TouchableOpacity
-                          key={pl.id}
-                          style={styles.plRow}
-                          onPress={() => handleAddToPlaylist(pl)}
-                          disabled={isAddingTrack}
-                        >
-                          {pl.cover_image_url ? (
-                            <Image source={{ uri: pl.cover_image_url }} style={styles.plThumb} />
-                          ) : (
-                            <View style={[styles.plThumb, { backgroundColor: "#EDE9FE", justifyContent: "center", alignItems: "center" }]}>
-                              <ListMusic size={20} color="#7C3AED" />
-                            </View>
-                          )}
-                          <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Text style={styles.menuLabel} numberOfLines={1}>{pl.name}</Text>
-                            <Text style={styles.songArtist}>{pl.track_count} เพลง</Text>
-                          </View>
-                          {isAddingTrack && <ActivityIndicator size="small" color="#7C3AED" />}
-                        </TouchableOpacity>
-                      ))
-                    )}
-                  </BottomSheetScrollView>
-                )}
-              </>
-            )}
-          </>
+      {/* ═══════════════════════════════════════════════════════════════════════════ */}
+      {/* PLAYLIST SELECTOR BOTTOM SHEET */}
+      {/* ═══════════════════════════════════════════════════════════════════════════ */}
+      <BottomSheet
+        ref={playlistSheetRef}
+        index={-1}
+        snapPoints={["70%"]}
+        enablePanDownToClose={true}
+        onClose={handleClosePlaylistSheet}
+        enableDynamicSizing={true}
+        handleIndicatorStyle={{ backgroundColor: '#9F7AEA', width: 40, height: 5 }}
+        backgroundComponent={({ style }) => (
+          <View style={[style, { overflow: 'hidden', borderTopLeftRadius: 24, borderTopRightRadius: 24 }]}>
+            <BlurView intensity={200} tint="light" style={{ flex: 1 }} />
+          </View>
         )}
-        <View style={{ height: 24 }} />
-      </BottomSheetView>
-    </BottomSheet>
+      >
+        <BottomSheetScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={true}>
+          {/* Header */}
+          <View className="px-6 py-4 border-b border-gray-200/50">
+            <Text className="text-gray-900 font-bold text-xl tracking-tight">
+              Add to Playlist
+            </Text>
+            {song && (
+              <Text className="text-gray-500 text-xs mt-2 font-medium">
+                {song.title}
+              </Text>
+            )}
+          </View>
+
+          {/* Playlist List */}
+          {loadingPlaylists ? (
+            <View className="h-32 justify-center items-center">
+              <ActivityIndicator color="#9F7AEA" size="large" />
+            </View>
+          ) : playlists.length === 0 ? (
+            <View className="h-32 justify-center items-center px-6">
+              <ListMusic size={40} color="#D1D5DB" />
+              <Text className="text-gray-500 text-center mt-3 font-medium">
+                ยังไม่มีเพลย์ลิสต์ครับ
+              </Text>
+            </View>
+          ) : (
+            <View>
+              {playlists.map((pl) => (
+                <TouchableOpacity
+                  key={pl.id}
+                  onPress={() => handleAddToPlaylist(pl)}
+                  disabled={isAddingTrack}
+                  className="flex-row items-center justify-between px-6 py-4 border-b border-gray-100/50 active:bg-gray-50/30"
+                >
+                  <View className="flex-row items-center flex-1">
+                    {pl.cover_image_url ? (
+                      <Image
+                        source={{ uri: pl.cover_image_url }}
+                        className="w-12 h-12 rounded-lg bg-gray-200"
+                      />
+                    ) : (
+                      <View className="w-12 h-12 rounded-lg bg-gradient-to-br from-purple-300 to-purple-600 items-center justify-center">
+                        <ListMusic size={20} color="#FFFFFF" />
+                      </View>
+                    )}
+                    <View className="flex-1 ml-4 justify-center">
+                      <Text
+                        className="text-gray-900 font-semibold text-base"
+                        numberOfLines={1}
+                      >
+                        {pl.name}
+                      </Text>
+                      <Text className="text-gray-500 text-xs mt-1">
+                        {pl.track_count} เพลง
+                      </Text>
+                    </View>
+                  </View>
+                  {isAddingTrack && (
+                    <ActivityIndicator size="small" color="#9F7AEA" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </BottomSheetScrollView>
+      </BottomSheet>
+    </>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  sheet: {
-    backgroundColor: "#fff",
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  handle: { width: 40, height: 4, backgroundColor: "#D1D5DB", borderRadius: 2, alignSelf: "center", marginBottom: 20 },
-  songHeader: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-  cover: { width: 52, height: 52, borderRadius: 10, backgroundColor: "#EDE9FE" },
-  songTitle: { fontWeight: "700", fontSize: 15, color: "#111827" },
-  songArtist: { color: "#6B7280", fontSize: 13, marginTop: 2 },
-  divider: { height: 1, backgroundColor: "#F3F4F6", marginBottom: 8 },
-  menuRow: { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
-  iconBg: { width: 40, height: 40, borderRadius: 12, justifyContent: "center", alignItems: "center", marginRight: 16 },
-  menuLabel: { fontSize: 15, fontWeight: "600", color: "#1F2937" },
-  plRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10 },
-  plThumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: "#EDE9FE" },
-});

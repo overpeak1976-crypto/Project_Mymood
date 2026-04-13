@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Text, View, ActivityIndicator, Image, ScrollView, TouchableOpacity, TextInput, RefreshControl, Alert } from "react-native";
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { supabase } from "../../../lib/supabase";
-import { Sparkles, Flame, Sparkle, Headphones, Play, Plus, X, FolderHeart, Users, Crown } from 'lucide-react-native';
+import { Sparkles, Flame, Sparkle, Headphones, Play, Plus, X, FolderHeart, Users, Crown, Heart } from 'lucide-react-native';
 import { useAudio } from '../../../context/AudioContext';
 import MiniPlayer from "../../../components/MiniPlayer";
 import SongContextMenu from "../../../components/SongContextMenu";
@@ -35,6 +35,7 @@ export default function HomeScreen() {
   // ── Context Menu States ──
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
   const [selectedContextSong, setSelectedContextSong] = useState<any>(null);
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
 
   const aiSheetRef = useRef<BottomSheet>(null);
 
@@ -119,14 +120,20 @@ export default function HomeScreen() {
       // 3. New API Features
       if (token) {
         try {
-          const [resMy, resFriends, resTop] = await Promise.all([
+          const [resMy, resFriends, resTop, resLikes] = await Promise.all([
             fetch(`${BACKEND_URL}/api/songs/my-uploads`, { headers: { Authorization: `Bearer ${token}` } }),
             fetch(`${BACKEND_URL}/api/songs/friends-uploads`, { headers: { Authorization: `Bearer ${token}` } }),
             fetch(`${BACKEND_URL}/api/songs/top-for-you`, { headers: { Authorization: `Bearer ${token}` } }),
+            fetch(`${BACKEND_URL}/api/likes/my-likes`, { headers: { Authorization: `Bearer ${token}` } }),
           ]);
           if (resMy.ok) setMyUploads(await resMy.json() || []);
           if (resFriends.ok) setFriendsUploads(await resFriends.json() || []);
           if (resTop.ok) setMyTopSongs(await resTop.json() || []);
+          if (resLikes.ok) {
+            const likesData = await resLikes.json();
+            const liked = likesData.liked_songs || [];
+            setLikedIds(new Set(liked.map((s: any) => s.id)));
+          }
         } catch (e) {
           console.error("Failed to fetch new API segments: ", e);
         }
@@ -218,6 +225,14 @@ export default function HomeScreen() {
 
   const handlePlayAndNavigate = (song: any, currentPlaylist: any[]) => {
     if (playSong) playSong(song, currentPlaylist);
+  };
+
+  const handleLikeToggled = (songId: string, isNowLiked: boolean) => {
+    setLikedIds((prev) => {
+      const next = new Set(prev);
+      isNowLiked ? next.add(songId) : next.delete(songId);
+      return next;
+    });
   };
 
   if (loading) {
@@ -343,7 +358,10 @@ export default function HomeScreen() {
                     onPress={() => handlePlayAndNavigate(song, myTopSongs)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-40 h-40 rounded-3xl bg-gray-200 shadow-md" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-40 h-40 rounded-3xl bg-gray-200 shadow-md" />
+                      
+                    </View>
                     <Text className="font-bold text-gray-800 mt-3 text-lg w-40" numberOfLines={1}>{song.title}</Text>
                     <Text className="text-purple-600 font-semibold text-sm w-40" numberOfLines={1}>{song.artist}</Text>
                   </TouchableOpacity>
@@ -367,7 +385,14 @@ export default function HomeScreen() {
                     onPress={() => handlePlayAndNavigate(song, newSongs)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-36 h-36 rounded-2xl bg-gray-200 shadow-sm" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-36 h-36 rounded-2xl bg-gray-200 shadow-sm" />
+                      {likedIds.has(song.id) && (
+                        <View className="absolute bottom-1 right-1 bg-gray-400 rounded-full p-1 shadow-md">
+                          <Heart size={12} color="#fff" fill="#fff" />
+                        </View>
+                      )}
+                    </View>
                     <Text className="font-bold text-gray-800 mt-3 text-base w-36" numberOfLines={1}>{song.title}</Text>
                     <Text className="text-gray-500 text-sm w-36" numberOfLines={1}>{song.artist}</Text>
                   </TouchableOpacity>
@@ -391,7 +416,14 @@ export default function HomeScreen() {
                     onPress={() => handlePlayAndNavigate(song, popularSongs)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-full bg-gray-200 shadow-sm" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-full bg-gray-200 shadow-sm" />
+                      {likedIds.has(song.id) && (
+                        <View className="absolute top-1 right-1 bg-red-500 rounded-full p-1 shadow-md">
+                          <Heart size={12} color="#fff" fill="#fff" />
+                        </View>
+                      )}
+                    </View>
                     <Text className="font-bold text-gray-800 mt-3 text-base w-32 text-center" numberOfLines={1}>{song.title}</Text>
                     <Text className="text-gray-500 text-sm text-center w-32" numberOfLines={1}>{song.play_count || 0} views</Text>
                   </TouchableOpacity>
@@ -415,7 +447,14 @@ export default function HomeScreen() {
                     onPress={() => handlePlayAndNavigate(song, friendsUploads)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-xl bg-gray-200 shadow-sm" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-xl bg-gray-200 shadow-sm" />
+                      {likedIds.has(song.id) && (
+                        <View className="absolute bottom-1 right-1 bg-gray-400 rounded-full p-1 shadow-md">
+                          <Heart size={12} color="#fff" fill="#fff" />
+                        </View>
+                      )}
+                    </View>
                     <Text className="font-bold text-gray-800 mt-3 text-sm w-32" numberOfLines={1}>{song.title}</Text>
                     <Text className="text-gray-500 text-xs w-32" numberOfLines={1}>{song.artist}</Text>
                   </TouchableOpacity>
@@ -439,7 +478,14 @@ export default function HomeScreen() {
                     onPress={() => handlePlayAndNavigate(song, myUploads)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-xl bg-gray-200 shadow-sm" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-xl bg-gray-200 shadow-sm" />
+                      {likedIds.has(song.id) && (
+                        <View className="absolute bottom-1 right-1 bg-gray-400 rounded-full p-1 shadow-md">
+                          <Heart size={12} color="#fff" fill="#fff" />
+                        </View>
+                      )}
+                    </View>
                     <Text className="font-bold text-gray-800 mt-3 text-sm w-32" numberOfLines={1}>{song.title}</Text>
                     <Text className="text-gray-500 text-xs w-32" numberOfLines={1}>{song.artist}</Text>
                   </TouchableOpacity>
@@ -464,8 +510,7 @@ export default function HomeScreen() {
         backgroundStyle={{ borderRadius: 32 }}
       >
         <BottomSheetScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 10, paddingBottom: 40 }}
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
         >
           <View style={{ flex: 1 }}>
@@ -530,8 +575,16 @@ export default function HomeScreen() {
                     key={`ai-${idx}`}
                     className="flex-row items-center mb-4 bg-gray-50 p-3 rounded-2xl"
                     onPress={() => playSong && playSong(song, aiResult.songs)}
+                    onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-14 h-14 rounded-xl mr-3 bg-gray-200" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-14 h-14 rounded-xl mr-3 bg-gray-200" />
+                      {likedIds.has(song.id) && (
+                        <View className="absolute top-0 right-2 bg-red-500 rounded-full p-0.5 shadow-md">
+                          <Heart size={10} color="#fff" fill="#fff" />
+                        </View>
+                      )}
+                    </View>
                     <View className="flex-1">
                       <Text className="font-bold text-gray-800 text-base" numberOfLines={1}>{song.title}</Text>
                       <Text className="text-gray-500 text-sm" numberOfLines={1}>{song.artist}</Text>
@@ -546,14 +599,16 @@ export default function HomeScreen() {
         </BottomSheetScrollView>
       </BottomSheet>
 
+      {/* Mini Player */}
+      <MiniPlayer />
+
       <SongContextMenu
         visible={contextMenuVisible}
         song={selectedContextSong}
         onClose={() => setContextMenuVisible(false)}
+        likedIds={likedIds}
+        onLikeToggled={handleLikeToggled}
       />
-
-      {/* Mini Player */}
-      <MiniPlayer />
     </View>
   );
 }
