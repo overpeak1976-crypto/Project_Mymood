@@ -54,7 +54,7 @@ export default function InboxScreen() {
     if (isRead) return;
 
     // หาแจ้งเตือนที่กดแล้วเปลี่ยนสถานะใน UI ทันที (เพื่อให้ดูเร็ว)
-    setNotifications((prev) => 
+    setNotifications((prev) =>
       prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
     );
 
@@ -96,9 +96,9 @@ export default function InboxScreen() {
   // 🌟 6. คอมโพเนนต์แสดงผลทีละรายการ
   const renderNotificationItem = ({ item }: { item: any }) => {
     const { icon, bgColor } = getIconByType(item.type);
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         onPress={() => handlePressNotification(item.id, item.is_read)}
         className={`flex-row items-center px-5 py-4 ${item.is_read ? 'bg-white' : 'bg-purple-50'}`}
         style={{ borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }} // Tailwind บางทีเพี้ยนตรง border
@@ -133,9 +133,9 @@ export default function InboxScreen() {
   return (
     <View className="flex-1 bg-white">
       {/* ส่วนหัวหน้าจอ */}
-      <View className="bg-white px-6 pt-14 pb-5 flex-row items-center justify-between border-b border-gray-100 shadow-sm z-10">
+      <View className="bg-white px-6 pt-12 pb-5 flex-row items-center justify-between border-b border-gray-100 shadow-sm z-10">
         <Text className="text-3xl font-extrabold text-purple-700">Inbox</Text>
-        
+
         {/* ปุ่มทำเครื่องหมายอ่านทั้งหมด (ถ้าจะทำเพิ่ม) */}
         <TouchableOpacity className="p-2">
           <MailOpen color="#9333EA" size={22} />
@@ -165,7 +165,7 @@ export default function InboxScreen() {
           }
         />
       )}
-        
+
       {/* ส่วนท้ายหน้าจอเผื่อต้องใส่ */}
       <View className="h-10 bg-white" />
     </View>

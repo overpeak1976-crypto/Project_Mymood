@@ -3,52 +3,92 @@ import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert, RefreshControl } from "react-native";
 
 import { Search, UserPlus, Check, X, ChevronRight, Users, Send } from "lucide-react-native";
-import { supabase } from "../../../lib/supabase"; 
+import { supabase } from "../../../lib/supabase";
 
-const BACKEND_URL = "http://192.168.1.37:8080"; 
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function FriendsScreen() {
   const [searchText, setSearchText] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]); 
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  
-  const [requests, setRequests] = useState<any[]>([]); 
+
+  const [requests, setRequests] = useState<any[]>([]);
   const [sentRequests, setSentRequests] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const loadFriendsData = async (isBackground = false) => {
+      if (!isBackground) setLoading(true);
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          if (isMounted) setLoading(false);
+          return;
+        }
+
+        const headers = { 'Authorization': `Bearer ${session.access_token}` };
+        const [friendsRes, reqRes, sentRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/friends/list`, { headers }),
+          fetch(`${BACKEND_URL}/api/friends/requests`, { headers }),
+          fetch(`${BACKEND_URL}/api/friends/sent-requests`, { headers }),
+        ]);
+
+        if (!friendsRes.ok) {
+          const err = await friendsRes.json().catch(() => ({}));
+          throw new Error(`Friends list failed ${friendsRes.status}: ${err?.error || friendsRes.statusText}`);
+        }
+        if (!reqRes.ok) {
+          const err = await reqRes.json().catch(() => ({}));
+          throw new Error(`Friend requests failed ${reqRes.status}: ${err?.error || reqRes.statusText}`);
+        }
+        if (!sentRes.ok) {
+          const err = await sentRes.json().catch(() => ({}));
+          throw new Error(`Sent requests failed ${sentRes.status}: ${err?.error || sentRes.statusText}`);
+        }
+
+        const [friendsData, reqData, sentData] = await Promise.all([
+          friendsRes.json(),
+          reqRes.json(),
+          sentRes.json(),
+        ]);
+
+        if (isMounted) {
+          setFriends(friendsData.friends || []);
+          setRequests(reqData.requests || []);
+          setSentRequests(sentData.sent_requests || []);
+        }
+
+      } catch (error: any) {
+        console.error(' Friends API Error:', error?.message ?? error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      }
+    };
+
     loadFriendsData();
-  }, []);
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session?.access_token) {
+        loadFriendsData(true);
+      }
+    });
 
-  const loadFriendsData = async () => {
-    try {
-      setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const token = session.access_token;
-      const headers = { 'Authorization': `Bearer ${token}` };
-      const friendsRes = await fetch(`${BACKEND_URL}/api/friends/list`, { headers });
-      const friendsData = await friendsRes.json();
-      setFriends(friendsData.friends || []);
-      const reqRes = await fetch(`${BACKEND_URL}/api/friends/requests`, { headers });
-      const reqData = await reqRes.json();
-      setRequests(reqData.requests || []);
-      const sentRes = await fetch(`${BACKEND_URL}/api/friends/sent-requests`, { headers });
-      const sentData = await sentRes.json();
-      setSentRequests(sentData.sent_requests || []);
-    } catch (error) {
-      console.error("Error loading friends data", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
+    return () => {
+      isMounted = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, [refreshTrigger]);
   const onRefresh = () => {
     setRefreshing(true);
-    loadFriendsData();
+    setRefreshTrigger(t => t + 1);
   };
 
   const handleSearch = async () => {
@@ -83,18 +123,18 @@ export default function FriendsScreen() {
         body: JSON.stringify({ targetUserId: targetId })
       });
       const data = await res.json();
-      
+
       if (!res.ok) throw new Error(data.error);
       Alert.alert("สำเร็จ!", "ส่งคำขอเป็นเพื่อนไปแล้ว รอเขารับแอดนะ ⏳");
-      setSearchText(""); 
+      setSearchText('');
       setSearchResults([]);
-      loadFriendsData();
+      setRefreshTrigger(t => t + 1);
     } catch (error: any) {
       Alert.alert("อ๊ะ!", error.message);
     }
   };
 
-const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete' | 'cancel') => {
+  const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete' | 'cancel') => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
@@ -117,9 +157,9 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
           setRequests(requests.filter(req => req.senderId !== targetId));
         }
       }
-      
-      if (action === 'confirm') loadFriendsData(); 
-      
+
+      if (action === 'confirm') setRefreshTrigger(t => t + 1);
+
     } catch (error: any) {
       Alert.alert("Error", error.message);
     }
@@ -134,7 +174,7 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
   }
 
   return (
-    <View className="flex-1 bg-[#FDFEFE] px-6 pt-16 relative">
+    <View className="flex-1 bg-[#FDFEFE] px-6 pt-12 relative">
       <View className="mb-6">
         <View className="flex-row items-center justify-between mb-2">
           <Text className="text-3xl font-extrabold text-purple-900">My Friends</Text>
@@ -143,14 +183,14 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
           </TouchableOpacity>
         </View>
         <Text className="text-gray-500 mb-6">ค้นหาและจัดการเพื่อนของคุณ</Text>
-        
+
         <View className="flex-row items-center bg-white border border-purple-100 rounded-full px-5 py-4 shadow-sm mb-6">
           <Search color="#9CA3AF" size={20} />
           <TextInput
             placeholder="ค้นหาเพื่อนด้วย @handle..."
             value={searchText}
             onChangeText={setSearchText}
-            onSubmitEditing={handleSearch} 
+            onSubmitEditing={handleSearch}
             className="flex-1 ml-3 text-base text-gray-800"
             autoCapitalize="none"
           />
@@ -158,12 +198,12 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
         </View>
       </View>
 
-      <ScrollView 
-        className="flex-1" 
+      <ScrollView
+        className="flex-1"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#7C3AED']} />}
       >
-        
+
         {searchResults.length > 0 && (
           <View className="mb-8">
             <Text className="text-lg font-bold text-gray-800 mb-4">ผลการค้นหา</Text>
@@ -174,7 +214,7 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
                   <Text className="font-bold text-gray-900">{user.username}</Text>
                   <Text className="text-gray-500 text-xs">@{user.handle}</Text>
                 </View>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => sendFriendRequest(user.id)}
                   className="bg-purple-600 px-4 py-2 rounded-full flex-row items-center"
                 >
@@ -192,21 +232,21 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
             <Text className="text-xl font-bold text-gray-800 mb-4">มีคนอยากเป็นเพื่อน ({requests.length})</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
               {requests.map(item => (
-               <View key={item.senderId} className="bg-white rounded-3xl p-5 mr-4 items-center shadow-sm border border-purple-50 w-60">
+                <View key={item.senderId} className="bg-white rounded-3xl p-5 mr-4 items-center shadow-sm border border-purple-50 w-60">
                   <Image source={{ uri: item.sender?.profile_image_url || 'https://ui-avatars.com/api/?name=U' }} className="w-16 h-16 rounded-full mb-3" />
                   <Text className="font-bold text-gray-900 text-lg" numberOfLines={1}>{item.sender?.username || 'Unknown User'}</Text>
                   <Text className="text-gray-500 mb-5 text-sm">@{item.sender?.handle || 'unknown'}</Text>
-                  
+
                   <View className="flex-row gap-x-3 w-full">
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={() => handleRequestAction(item.senderId, 'confirm')}
                       className="flex-1 bg-purple-600 py-3 rounded-xl items-center justify-center flex-row gap-x-1.5"
                     >
                       <Check color="#fff" size={18} />
                       <Text className="text-white font-bold text-xs">รับแอด</Text>
                     </TouchableOpacity>
-                    
-                    <TouchableOpacity 
+
+                    <TouchableOpacity
                       onPress={() => handleRequestAction(item.senderId, 'delete')}
                       className="flex-1 border border-purple-200 py-3 rounded-xl items-center justify-center flex-row gap-x-1.5"
                     >
@@ -230,8 +270,8 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
                   <Image source={{ uri: item.receiver?.profile_image_url || 'https://ui-avatars.com/api/?name=U' }} className="w-12 h-12 rounded-full mb-2 opacity-80" />
                   <Text className="font-bold text-gray-900 text-sm" numberOfLines={1}>{item.receiver?.username || 'Unknown'}</Text>
                   <Text className="text-gray-500 mb-3 text-xs">รอรับแอด...</Text>
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     onPress={() => handleRequestAction(item.receiverId, 'cancel')}
                     className="w-full bg-white border border-gray-200 py-2 rounded-lg items-center justify-center"
                   >
@@ -255,7 +295,7 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
                   <Image source={{ uri: item.profile_image_url || 'https://ui-avatars.com/api/?name=U' }} className="w-14 h-14 rounded-full" />
                   <View className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white ${item.is_online ? 'bg-green-500' : 'bg-gray-400'}`} />
                 </View>
-                
+
                 <View className="ml-4 flex-1">
                   <Text className="font-bold text-gray-900 text-base">{item.username}</Text>
                   <Text className="text-gray-500 text-xs mt-1">@{item.handle}</Text>

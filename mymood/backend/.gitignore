@@ -10,3 +10,4 @@ temp_*/
 
 # ซ่อนโฟลเดอร์ที่เกิดจากการ Build โค้ด
 dist/
+/src/generated/prisma

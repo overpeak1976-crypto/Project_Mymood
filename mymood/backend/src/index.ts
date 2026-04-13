@@ -12,6 +12,8 @@ import likeRoutes from './routes/likeRoutes';
 import playRoutes from './routes/playRoutes';
 import friendRoutes from './routes/friendRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+import playlistRoutes from './routes/playlistRoutes';
+import searchRoutes from './routes/searchRoutes';
 dotenv.config();
 
 const app = express();
@@ -32,6 +34,8 @@ app.use('/api/likes', likeRoutes);
 app.use('/api/play', playRoutes);
 app.use('/api/friends', friendRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/playlists', playlistRoutes);
+app.use('/api/search', searchRoutes);
 
 app.get('/', (req, res) => {
   res.send('My Mood API is running! 🚀 (Serverless/Realtime Mode)');

@@ -39,12 +39,18 @@ export default function Dashboard({ adminToken, onLogout }: { adminToken: string
         setSongs(res.data);
       }
     } catch (err: any) {
-      console.error("Fetch error:", err);
+      // --- DETAILED ERROR LOGGING ---
+      console.error("❌ [fetchData] API Error:");
+      console.error("  Status    :", err.response?.status ?? 'No response (Network/CORS error?)');
+      console.error("  Data      :", err.response?.data ?? 'No response body');
+      console.error("  Message   :", err.message);
+      console.error("  Full error:", err);
+      // --------------------------------
       if (err.response?.status === 401 || err.response?.status === 403) {
         alert("เซสชันหมดอายุ หรือคุณไม่มีสิทธิ์ Admin กรุณาล็อกอินใหม่");
         onLogout();
       } else {
-        alert("ดึงข้อมูลไม่สำเร็จ เช็คเซิร์ฟเวอร์ด่วน!");
+        alert(`ดึงข้อมูลไม่สำเร็จ: ${err.response?.data?.error || err.message}`);
       }
     }
     setLoading(false);
@@ -58,8 +64,12 @@ export default function Dashboard({ adminToken, onLogout }: { adminToken: string
       });
       alert('ลบเพลงสำเร็จ!');
       fetchData();
-    } catch (err) {
-      alert('ลบเพลงไม่สำเร็จ');
+    } catch (err: any) {
+      console.error("❌ [handleDeleteSong] Error:");
+      console.error("  Status:", err.response?.status ?? 'No response');
+      console.error("  Data  :", err.response?.data ?? 'No response body');
+      console.error("  Msg   :", err.message);
+      alert(`ลบเพลงไม่สำเร็จ: ${err.response?.data?.error || err.message}`);
     }
   };
 
@@ -92,8 +102,12 @@ export default function Dashboard({ adminToken, onLogout }: { adminToken: string
       alert(`ส่งข้อความหา ${messageModal.userName} สำเร็จ!`);
       setMessageModal({ isOpen: false, userId: '', userName: '' });
       setAdminMessage('');
-    } catch (error) {
-      alert("ส่งข้อความไม่สำเร็จ");
+    } catch (error: any) {
+      console.error("❌ [handleSendMessage] Error:");
+      console.error("  Status:", error.response?.status ?? 'No response');
+      console.error("  Data  :", error.response?.data ?? 'No response body');
+      console.error("  Msg   :", error.message);
+      alert(`ส่งข้อความไม่สำเร็จ: ${error.response?.data?.error || error.message}`);
     } finally {
       setIsSending(false);
     }
@@ -290,7 +304,7 @@ export default function Dashboard({ adminToken, onLogout }: { adminToken: string
                               <p className="text-sm text-gray-500">{song.artist}</p>
                             </td>
                             <td className="p-4">
-                              <p className="text-sm text-gray-600">@{song.uploader?.handle || 'ไม่ทราบ'}</p>
+                              <p className="text-sm text-gray-600">@{(song.uploader?.handle ?? song.users_songs_uploaded_byTousers?.handle) || 'ไม่ทราบ'}</p>
                             </td>
 
                             {/* 🌟 5. แสดงป้ายสถานะ */}

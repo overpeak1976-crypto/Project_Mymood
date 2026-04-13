@@ -6,8 +6,6 @@ import { supabase } from "../../lib/supabase";
 import { makeRedirectUri } from "expo-auth-session";
 import * as WebBrowser from 'expo-web-browser';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
-import * as FileSystem from 'expo-file-system/legacy';
-import { decode } from 'base64-arraybuffer'; 
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -46,6 +44,7 @@ export default function LoginScreen() {
   };
 
   const onGoogleLogin = async () => {
+    setLoading(true);
     try {
       const redirectUrl = makeRedirectUri();
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -58,12 +57,12 @@ export default function LoginScreen() {
 
       if (error) throw error;
       const res = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-      
+
       if (res.type === 'success') {
         const { params, errorCode } = QueryParams.getQueryParams(res.url);
         if (errorCode) throw new Error(errorCode);
         const { access_token, refresh_token } = params;
-        
+
         if (access_token && refresh_token) {
           await supabase.auth.setSession({
             access_token,
@@ -74,48 +73,20 @@ export default function LoginScreen() {
         const { data: userData } = await supabase.auth.getUser();
         if (userData.user) {
           const user = userData.user;
-          let finalAvatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture;
-
-          // 🌟 เช็คว่ามีข้อมูลในตาราง users หรือยัง (เพื่อดูว่าเป็นไอดีใหม่ไหม)
           const { data: existingUser } = await supabase
             .from('users')
-            .select('handle, profile_image_url')
+            .select('handle')
             .eq('id', user.id)
             .maybeSingle();
 
-          // 🌟 ถ้ามีรูป Google แต่ยังไม่ใช่รูปจาก Supabase Storage ให้ดูดมาเก็บไว้
-          if (finalAvatarUrl && finalAvatarUrl.startsWith('http') && !finalAvatarUrl.includes('supabase.co')) {
-            try {
-              const tempFile = `${FileSystem.cacheDirectory}google_sync_${Date.now()}.jpg`;
-              const { uri } = await FileSystem.downloadAsync(finalAvatarUrl, tempFile);
-              const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
-              
-              const fileName = `${user.id}/avatar_google_${Date.now()}.jpg`;
-              const { error: uploadError } = await supabase.storage
-                .from("picture")
-                .upload(fileName, decode(base64), { contentType: 'image/jpeg', upsert: true });
-
-                if (!uploadError) {
-                  const { data: { publicUrl } } = supabase.storage.from("picture").getPublicUrl(fileName);
-                  finalAvatarUrl = publicUrl;
-                  // อัปเดต metadata จะได้ไม่ต้องดูดซ้ำรอบหน้า
-                  await supabase.auth.updateUser({ data: { picture: publicUrl, avatar_url: publicUrl } });
-                } 
-            } catch (syncError) {
-              console.error("Google Image Sync Error:", syncError);
-            }
-          }
-
-          // 🌟 ถ้ามี handle แสดงว่าเคยสร้างโปรไฟล์แล้ว
-          if (existingUser && existingUser.handle) {
+          if (existingUser?.handle) {
             await supabase.from('users').update({
               is_online: true,
               last_active: new Date(),
-             
             }).eq('id', user.id);
-            
-            Alert.alert( "เข้าสู่ระบบเรียบร้อยแล้ว");
             router.replace("/(drawer)/(tabs)");
+          } else {
+            router.replace("/(auth)/complete-profile" as any);
           }
         }
       }

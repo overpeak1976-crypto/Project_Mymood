@@ -1,0 +1,294 @@
+import {
+  View, Text, Image, TouchableOpacity,
+  StyleSheet, Alert, ActivityIndicator,
+} from "react-native";
+import { Heart, ListPlus, Share2, ChevronLeft, ListMusic } from "lucide-react-native";
+import { supabase } from "../lib/supabase";
+import BottomSheet, { BottomSheetView, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+export type SongMenuItem = {
+  id: string;
+  title: string;
+  artist: string;
+  cover_image_url?: string;
+  audio_file_url?: string;
+};
+
+type Playlist = { id: string; name: string; cover_image_url?: string; track_count: number };
+
+interface SongContextMenuProps {
+  visible: boolean;
+  song: SongMenuItem | null;
+  onClose: () => void;
+  /** Pass the current user's liked song IDs so the heart shows the correct state */
+  likedIds?: Set<string>;
+  /** Called after a successful like/unlike so the parent can update its state */
+  onLikeToggled?: (songId: string, isNowLiked: boolean) => void;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+export default function SongContextMenu({
+  visible,
+  song,
+  onClose,
+  likedIds = new Set(),
+  onLikeToggled,
+}: SongContextMenuProps) {
+  const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [loadingPlaylists, setLoadingPlaylists] = useState(false);
+  const [isAddingTrack, setIsAddingTrack] = useState(false);
+
+  const isLiked = song ? likedIds.has(song.id) : false;
+
+  // ── Close & reset ────────────────────────────────────────────────────────────
+  const sheetRef = useRef<BottomSheet>(null);
+
+  useEffect(() => {
+    if (visible) sheetRef.current?.expand();
+    else sheetRef.current?.close();
+  }, [visible]);
+
+  const renderBackdrop = useCallback(
+    (props: any) => <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} pressBehavior="close" />,
+    []
+  );
+
+  const handleClose = () => {
+    setShowPlaylistSelector(false);
+    onClose();
+  };
+
+  // ── Like / Unlike ────────────────────────────────────────────────────────────
+  const handleToggleLike = async () => {
+    if (!song) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const res = await fetch(`${BACKEND_URL}/api/likes/toggle`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ song_id: song.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      onLikeToggled?.(song.id, data.isLiked);
+    } catch (err: any) {
+      Alert.alert("Error", err.message);
+    }
+    handleClose();
+  };
+
+  // ── Open playlist selector (lazy-loads playlists) ────────────────────────────
+  const openPlaylistSelector = async () => {
+    setLoadingPlaylists(true);
+    setShowPlaylistSelector(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const res = await fetch(`${BACKEND_URL}/api/playlists`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setPlaylists(data.playlists || []);
+    } catch (err: any) {
+      Alert.alert("Error", err.message);
+      setShowPlaylistSelector(false);
+    } finally {
+      setLoadingPlaylists(false);
+    }
+  };
+
+  // ── Add to playlist ──────────────────────────────────────────────────────────
+  const handleAddToPlaylist = async (playlist: Playlist) => {
+    if (!song) return;
+    setIsAddingTrack(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
+
+      const res = await fetch(`${BACKEND_URL}/api/playlists/${playlist.id}/tracks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ song_id: song.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      handleClose();
+      Alert.alert("เพิ่มสำเร็จ! 🎵", `"${song.title}" เข้า "${playlist.name}" แล้ว`);
+    } catch (err: any) {
+      Alert.alert("Error", err.message);
+    } finally {
+      setIsAddingTrack(false);
+    }
+  };
+
+  // ── Share (placeholder) ──────────────────────────────────────────────────────
+  const handleShare = () => {
+    console.log("Share:", song?.title);
+    // TODO: integrate expo-sharing or deep-link based sharing
+    handleClose();
+  };
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
+  const coverUri =
+    song?.cover_image_url ||
+    (song ? `https://ui-avatars.com/api/?name=${encodeURIComponent(song.title)}&background=7C3AED&color=fff` : "");
+
+
+
+  return (
+    <BottomSheet
+      ref={sheetRef}
+      index={-1}
+      enableDynamicSizing={true}
+      enablePanDownToClose={true}
+      onClose={handleClose}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={{ borderRadius: 32 }}
+      handleIndicatorStyle={{ backgroundColor: "#D1D5DB", width: 40, height: 4, marginTop: 10 }}
+    >
+      <BottomSheetView style={styles.sheet}>
+        {song && (
+          <>
+            {/* Song Header */}
+            <View style={styles.songHeader} className="pt-2">
+              <Image source={{ uri: coverUri }} style={styles.cover} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.songTitle} numberOfLines={1}>{song.title}</Text>
+                <Text style={styles.songArtist} numberOfLines={1}>{song.artist}</Text>
+              </View>
+            </View>
+            <View style={styles.divider} />
+
+            {/* ── View: Options ── */}
+            {!showPlaylistSelector && (
+              <>
+                {/* Like / Unlike */}
+                <TouchableOpacity style={styles.menuRow} onPress={handleToggleLike}>
+                  <View style={[styles.iconBg, { backgroundColor: isLiked ? "#FEE2E2" : "#F3F4F6" }]}>
+                    <Heart
+                      size={20}
+                      color={isLiked ? "#EF4444" : "#6B7280"}
+                      fill={isLiked ? "#EF4444" : "none"}
+                    />
+                  </View>
+                  <Text style={styles.menuLabel}>{isLiked ? "Unlike" : "Like"}</Text>
+                </TouchableOpacity>
+
+                {/* Add to Playlist */}
+                <TouchableOpacity style={styles.menuRow} onPress={openPlaylistSelector}>
+                  <View style={[styles.iconBg, { backgroundColor: "#EDE9FE" }]}>
+                    <ListPlus size={20} color="#7C3AED" />
+                  </View>
+                  <Text style={styles.menuLabel}>Add to Playlist</Text>
+                </TouchableOpacity>
+
+                {/* Share */}
+                <TouchableOpacity style={styles.menuRow} onPress={handleShare}>
+                  <View style={[styles.iconBg, { backgroundColor: "#E0F2FE" }]}>
+                    <Share2 size={20} color="#0284C7" />
+                  </View>
+                  <Text style={styles.menuLabel}>Share</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* ── View: Playlist Selector ── */}
+            {showPlaylistSelector && (
+              <>
+                <TouchableOpacity
+                  style={{ flexDirection: "row", alignItems: "center" }}
+                  onPress={() => setShowPlaylistSelector(false)}
+                >
+                  <ChevronLeft size={18} color="#7C3AED" />
+                  <Text style={{ color: "#7C3AED", fontWeight: "600", marginLeft: 4 }}>Back</Text>
+                </TouchableOpacity>
+
+                <Text style={[styles.songTitle, { marginBottom: 12 }]}>Add to Playlist</Text>
+
+                {loadingPlaylists ? (
+                  <ActivityIndicator color="#7C3AED" style={{ paddingVertical: 24 }} />
+                ) : (
+                  <BottomSheetScrollView
+                    style={{ flex: 1, maxHeight: "60%", }}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {playlists.length === 0 ? (
+                      <Text style={{ color: "#9CA3AF", textAlign: "center", paddingVertical: 20 }}>
+                        ยังไม่มีเพลย์ลิสต์ครับ
+                      </Text>
+                    ) : (
+                      playlists.map((pl) => (
+                        <TouchableOpacity
+                          key={pl.id}
+                          style={styles.plRow}
+                          onPress={() => handleAddToPlaylist(pl)}
+                          disabled={isAddingTrack}
+                        >
+                          {pl.cover_image_url ? (
+                            <Image source={{ uri: pl.cover_image_url }} style={styles.plThumb} />
+                          ) : (
+                            <View style={[styles.plThumb, { backgroundColor: "#EDE9FE", justifyContent: "center", alignItems: "center" }]}>
+                              <ListMusic size={20} color="#7C3AED" />
+                            </View>
+                          )}
+                          <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Text style={styles.menuLabel} numberOfLines={1}>{pl.name}</Text>
+                            <Text style={styles.songArtist}>{pl.track_count} เพลง</Text>
+                          </View>
+                          {isAddingTrack && <ActivityIndicator size="small" color="#7C3AED" />}
+                        </TouchableOpacity>
+                      ))
+                    )}
+                  </BottomSheetScrollView>
+                )}
+              </>
+            )}
+          </>
+        )}
+        <View style={{ height: 24 }} />
+      </BottomSheetView>
+    </BottomSheet>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  handle: { width: 40, height: 4, backgroundColor: "#D1D5DB", borderRadius: 2, alignSelf: "center", marginBottom: 20 },
+  songHeader: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
+  cover: { width: 52, height: 52, borderRadius: 10, backgroundColor: "#EDE9FE" },
+  songTitle: { fontWeight: "700", fontSize: 15, color: "#111827" },
+  songArtist: { color: "#6B7280", fontSize: 13, marginTop: 2 },
+  divider: { height: 1, backgroundColor: "#F3F4F6", marginBottom: 8 },
+  menuRow: { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
+  iconBg: { width: 40, height: 40, borderRadius: 12, justifyContent: "center", alignItems: "center", marginRight: 16 },
+  menuLabel: { fontSize: 15, fontWeight: "600", color: "#1F2937" },
+  plRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10 },
+  plThumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: "#EDE9FE" },
+});
