@@ -11,32 +11,59 @@ export default function Settings() {
         { title: "Edit Profile", path: "/settings/edit-profile", icon: "chevron-forward" },
         { title: "Change Password", path: "/settings/change-password", icon: "chevron-forward" },
         { title: "Notification", path: "/settings/notification", icon: "chevron-forward" },
-        { title: "Privacy settings", path: "/settings/privacy", icon: "chevron-forward" },
+        { title: "Privacy Account", path: "/settings/privacy", icon: "chevron-forward" },
         { title: "Logout", action: "logout", icon: "log-out-outline" },
     ];
 
-    const handleLogout = async () => {
+const handleLogout = async () => {
         Alert.alert(
             "ออกจากระบบ",
-            "คุณต้องการออกจากระบบหรือไม่",
+            "คุณต้องการออกจากระบบหรือไม่?",
             [
-                { text: "No", style: "cancel" }, 
-                { 
-                    text: "Yes", style: "destructive",
+                { text: "No", style: "cancel" },
+                {
+                    text: "Yes",
+                    style: "destructive",
                     onPress: async () => {
-                        await supabase.auth.signOut();
-                        router.replace("/(auth)");
-                    }
-                }
+                        try {
+                            console.log("Starting logout process...");
+                            const { data, error: getUserError } = await supabase.auth.getUser();
+                            if (getUserError) {
+                                console.error("Get user error:", getUserError);
+                                throw getUserError;
+                            }
+                            if (data?.user) {
+                                console.log("Updating is_online to false for user:", data.user.id);
+                                const { error: updateError } = await supabase.from('users').update({ is_online: false }).eq('id', data.user.id);
+                                if (updateError) {
+                                    console.error("Update is_online error:", updateError);
+                                    // ไม่ throw เพื่อให้ signOut ทำงานต่อ
+                                }
+                            }
+                            console.log("Calling signOut...");
+                            const { error: signOutError } = await supabase.auth.signOut();
+                            if (signOutError) {
+                                console.error("SignOut error:", signOutError);
+                                throw signOutError;
+                            }
+                            console.log("SignOut successful");
+                        } catch (error) {
+                            console.error("Logout Error:", error);
+                            Alert.alert("Error", "Logout failed. Please try again.");
+                        } finally {
+                            console.log("Redirecting to auth page...");
+                            router.replace("/(auth)");
+                        }
+                    },
+                },
             ]
-        )
-    }
-
+        );
+    };
     return (
         <View className="flex-1 bg-[#F5F3FF]">
 
             <View className="mt-9 px-4 gap-7">
-                
+
                 <Text className="text-3xl font-extrabold text-center text-purple-700 mb-10">
                     Settings
                 </Text>

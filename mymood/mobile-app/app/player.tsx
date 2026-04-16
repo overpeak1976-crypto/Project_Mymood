@@ -6,7 +6,6 @@ import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { useAudio } from '../context/AudioContext'; 
 import Slider from '@react-native-community/slider';
-
 const { width, height } = Dimensions.get('window');
 const ModernSpinner = ({ size = 24, color = "#7C3AED" }) => {
   const spinValue = new Animated.Value(0);

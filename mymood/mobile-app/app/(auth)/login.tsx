@@ -111,11 +111,13 @@ export default function LoginScreen() {
             await supabase.from('users').update({
               is_online: true,
               last_active: new Date(),
-             
+            
             }).eq('id', user.id);
             
             Alert.alert( "เข้าสู่ระบบเรียบร้อยแล้ว");
             router.replace("/(drawer)/(tabs)");
+          } else {
+            router.replace("/complete-profile");
           }
         }
       }

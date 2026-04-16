@@ -106,7 +106,7 @@ export default function HomeScreen() {
         .from("songs")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(50);
       if (newData) setNewSongs(newData);
 
       // ดึงเพลงฮิต

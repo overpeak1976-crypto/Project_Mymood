@@ -7,9 +7,7 @@ export default function Privacy() {
     const [isMusic, setIsMusic] = useState(false);
     return (
         <View className="flex-1 bg-[#F5F3FF] pt-20 px-5">
-            <Text className="text-3xl font-extrabold text-center text-purple-700 mb-10">
-                Privacy
-            </Text>
+            
             <View className="bg-white rounded-3xl p-5 border border-purple-200 shadow-lg">
                 {/* 1 */}
                 <View className="flex-row items-start">

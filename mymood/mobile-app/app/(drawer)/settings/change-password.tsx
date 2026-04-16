@@ -54,11 +54,7 @@ export default function ChangePassword() {
     };
 
     return (
-        <View className="flex-1 bg-[#F5F3FF] px-5 pt-12">
-
-            <Text className="text-3xl font-extrabold text-center text-purple-700 mb-12">
-                Change Password
-            </Text>
+        <View className="flex-1 bg-[#F5F3FF] pt-20 px-5">
 
             <View className="bg-white rounded-3xl p-6 shadow-lg border border-purple-100">
 
@@ -66,16 +62,19 @@ export default function ChangePassword() {
                 <Text className="text-gray-700 font-semibold mb-2">
                     Old Password
                 </Text>
-                    <View className="flex-row items-center bg-white rounded-xl px-4 py-3 mb-4 border border-gray-200">
+                    <View>
                         <TextInput
                             ref={oldRef}
-                            className="flex-1 text-base"
+                            className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
                             secureTextEntry={!showOld}
                             value={oldPassword}
                             onChangeText={setOldPassword}
                             placeholder="Enter old password"
                         />
-                    <TouchableOpacity onPress={() => setShowOld(!showOld)}>
+                    <TouchableOpacity 
+                        onPress={() => setShowOld(!showOld)}
+                        className="absolute right-4 top-4"
+                    >
                         <Ionicons
                             name={showOld ? "eye-off-outline" : "eye-outline"}
                             size={20}
@@ -88,15 +87,18 @@ export default function ChangePassword() {
                 <Text className="text-gray-700 font-semibold mb-2">
                     New password
                 </Text>
-                    <View className="flex-row items-center bg-white rounded-xl px-4 py-3 mb-4 border border-gray-200">
+                    <View>
                         <TextInput
-                            className="flex-1 text-base"
+                            className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
                             secureTextEntry={!showNew}
                             value={newPassword}
                             onChangeText={setNewPassword}
                             placeholder="Enter new password"
                         />
-                    <TouchableOpacity onPress={() => setShowNew(!showNew)}>
+                    <TouchableOpacity 
+                        onPress={() => setShowNew(!showNew)}
+                        className="absolute right-4 top-4"
+                    >
                         <Ionicons
                             name={showNew ? "eye-off-outline" : "eye-outline"}
                             size={20}
@@ -110,9 +112,9 @@ export default function ChangePassword() {
                 <Text className="text-gray-700 font-semibold mb-2">
                     Confirm new password
                 </Text>
-                    <View className="flex-row items-center bg-white rounded-xl px-4 py-3 mb-4 border border-gray-200">
+                    <View>
                         <TextInput
-                            className="flex-1 text-base"
+                            className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
                             secureTextEntry
                             value={confirmPassword}
                             onChangeText={setConfirmPassword}
