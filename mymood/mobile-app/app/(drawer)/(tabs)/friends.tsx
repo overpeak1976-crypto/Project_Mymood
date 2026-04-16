@@ -1,4 +1,5 @@
 import "../../global.css";
+import { useRouter } from "expo-router";
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert, RefreshControl } from "react-native";
 
@@ -8,6 +9,7 @@ import { supabase } from "../../../lib/supabase";
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function FriendsScreen() {
+  const router = useRouter();
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]); 
   const [loading, setLoading] = useState(true);
@@ -168,7 +170,10 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
           <View className="mb-8">
             <Text className="text-lg font-bold text-gray-800 mb-4">ผลการค้นหา</Text>
             {searchResults.map((user) => (
-              <View key={user.id} className="flex-row items-center bg-purple-50 p-4 rounded-2xl mb-3 shadow-sm border border-purple-100">
+              <TouchableOpacity 
+                  key={user.id} 
+                  onPress={() => router.push(`/ProfilePublic/${user.id}`)}
+                  className="flex-row items-center bg-purple-50 p-4 rounded-2xl mb-3 shadow-sm border border-purple-100">
                 <Image source={{ uri: user.profile_image_url || 'https://ui-avatars.com/api/?name=U' }} className="w-12 h-12 rounded-full" />
                 <View className="ml-4 flex-1">
                   <Text className="font-bold text-gray-900">{user.username}</Text>
@@ -181,7 +186,7 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
                   <UserPlus color="#fff" size={16} />
                   <Text className="text-white ml-2 font-bold text-xs">แอดเพื่อน</Text>
                 </TouchableOpacity>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -192,7 +197,7 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
             <Text className="text-xl font-bold text-gray-800 mb-4">มีคนอยากเป็นเพื่อน ({requests.length})</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
               {requests.map(item => (
-               <View key={item.senderId} className="bg-white rounded-3xl p-5 mr-4 items-center shadow-sm border border-purple-50 w-60">
+              <View key={item.senderId} className="bg-white rounded-3xl p-5 mr-4 items-center shadow-sm border border-purple-50 w-60">
                   <Image source={{ uri: item.sender?.profile_image_url || 'https://ui-avatars.com/api/?name=U' }} className="w-16 h-16 rounded-full mb-3" />
                   <Text className="font-bold text-gray-900 text-lg" numberOfLines={1}>{item.sender?.username || 'Unknown User'}</Text>
                   <Text className="text-gray-500 mb-5 text-sm">@{item.sender?.handle || 'unknown'}</Text>
@@ -226,7 +231,9 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
             <Text className="text-lg font-bold text-gray-800 mb-4">คำขอที่ส่งไป ({sentRequests.length})</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
               {sentRequests.map(item => (
-                <View key={item.receiverId} className="bg-purple-50 rounded-3xl p-4 mr-4 items-center shadow-sm border border-purple-100 w-48">
+                <TouchableOpacity key={item.receiverId} 
+                  onPress={() => router.push(`/ProfilePublic/${item.receiverId}`)}
+                  className="bg-purple-50 rounded-3xl p-4 mr-4 items-center shadow-sm border border-purple-100 w-48">
                   <Image source={{ uri: item.receiver?.profile_image_url || 'https://ui-avatars.com/api/?name=U' }} className="w-12 h-12 rounded-full mb-2 opacity-80" />
                   <Text className="font-bold text-gray-900 text-sm" numberOfLines={1}>{item.receiver?.username || 'Unknown'}</Text>
                   <Text className="text-gray-500 mb-3 text-xs">รอรับแอด...</Text>
@@ -237,7 +244,7 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
                   >
                     <Text className="text-gray-600 font-bold text-xs">ยกเลิก</Text>
                   </TouchableOpacity>
-                </View>
+                </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
@@ -250,7 +257,11 @@ const handleRequestAction = async (targetId: string, action: 'confirm' | 'delete
             <Text className="text-gray-500 text-center py-6">ยังไม่มีเพื่อน ลองค้นหาผู้ใช้แล้วแอดดูสิ!</Text>
           ) : (
             friends.map(item => (
-              <TouchableOpacity key={item.id} className="flex-row items-center bg-white p-4 rounded-2xl mb-3 shadow-sm border border-gray-50">
+  <TouchableOpacity 
+    key={item.id}
+    onPress={() => router.push(`/ProfilePublic/${item.id}`)}
+    className="flex-row items-center bg-white p-4 rounded-2xl mb-3 shadow-sm border border-gray-50"
+  >
                 <View className="relative">
                   <Image source={{ uri: item.profile_image_url || 'https://ui-avatars.com/api/?name=U' }} className="w-14 h-14 rounded-full" />
                   <View className={`absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white ${item.is_online ? 'bg-green-500' : 'bg-gray-400'}`} />
