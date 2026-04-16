@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, Image } from "react-native";
+import { Text, View, TextInput, TouchableOpacity, ActivityIndicator, Image } from "react-native";
+import { useToast } from "../../context/ToastContext";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 import * as ImagePicker from 'expo-image-picker'; 
@@ -9,6 +10,7 @@ import { decode } from 'base64-arraybuffer';
 
 export default function CompleteProfileScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [username, setUsername] = useState("");
   const [handle, setHandle] = useState("");
   const [loading, setLoading] = useState(false);
@@ -63,7 +65,7 @@ export default function CompleteProfileScreen() {
 
   const handleCompleteProfile = async () => {
     if (!username || !handle) {
-      Alert.alert("แจ้งเตือน", "กรุณากรอกชื่อและไอดีให้ครบถ้วนครับ");
+      showToast("Please fill in your name and ID", 'info');
       return;
     } 
     if (!sessionUser) return;
@@ -80,7 +82,7 @@ export default function CompleteProfileScreen() {
         .maybeSingle();
 
       if (existingHandle) {
-        Alert.alert("อ๊ะ!", "Handle นี้มีคนใช้ไปแล้วครับ");
+        showToast("This handle is already taken", 'error');
         setLoading(false);
         return;
       }
@@ -154,11 +156,11 @@ export default function CompleteProfileScreen() {
         }
       });
 
-      Alert.alert("สำเร็จ!", "สร้างโปรไฟล์เรียบร้อยแล้ว 🎉");
+      showToast("Profile created successfully!", 'success');
       router.replace("/(drawer)/(tabs)");
     } catch (error: any) {
       console.error(error);
-      Alert.alert("เกิดข้อผิดพลาด", error.message);
+      showToast(`Error: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }

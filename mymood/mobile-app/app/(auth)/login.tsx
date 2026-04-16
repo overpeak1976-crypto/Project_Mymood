@@ -1,7 +1,8 @@
 import "../global.css";
 import React, { useState } from "react";
-import { Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, Image } from "react-native";
+import { Text, View, TextInput, TouchableOpacity, ActivityIndicator, Image } from "react-native";
 import { useRouter } from "expo-router";
+import { useToast } from "../../context/ToastContext";
 import { supabase } from "../../lib/supabase";
 import { makeRedirectUri } from "expo-auth-session";
 import * as WebBrowser from 'expo-web-browser';
@@ -11,13 +12,14 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("แจ้งเตือน", "กรุณากรอกอีเมลและรหัสผ่านให้ครบครับ");
+      showToast("Please fill in your email and password", 'error');
       return;
     }
 
@@ -28,7 +30,7 @@ export default function LoginScreen() {
     });
 
     if (error) {
-      Alert.alert("เข้าสู่ระบบล้มเหลว", "อีเมลหรือรหัสผ่านไม่ถูกต้องครับ");
+      showToast("Invalid email or password", 'error');
     } else {
       const { data: userData } = await supabase.auth.getUser();
       if (userData.user) {
@@ -37,7 +39,7 @@ export default function LoginScreen() {
           last_active: new Date()
         }).eq('id', userData.user.id);
       }
-      Alert.alert("สำเร็จ!", "เข้าสู่ระบบเรียบร้อยแล้ว");
+      showToast("Login successful!", 'success');
       router.replace("/(drawer)/(tabs)");
     }
     setLoading(false);
@@ -91,7 +93,7 @@ export default function LoginScreen() {
         }
       }
     } catch (error: any) {
-      Alert.alert("Google Login Error", error.message);
+      showToast(`Google login failed: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }

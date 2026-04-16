@@ -1,20 +1,11 @@
-import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
-import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
-import { LogBox } from 'react-native';
-import { supabase } from '../lib/supabase';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAudioEngine } from '@/hooks/useAudioEngine';
+import { useQueueManager } from '@/hooks/useQueueManager';
+import { usePlayHistory } from '@/hooks/usePlayHistory';
+import { Song } from '@/types/audio';
 
-LogBox.ignoreLogs([
-  '[expo-av]: Expo AV has been deprecated'
-]);
-
-export interface Song {
-  id: string;
-  title: string;
-  artist: string;
-  cover_image_url: string;
-  audio_file_url: string;
-}
-
+export type { Song };
 interface AudioContextType {
   currentSong: Song | null;
   isPlaying: boolean;
@@ -22,406 +13,445 @@ interface AudioContextType {
   currentTime: number;
   totalDuration: number;
   progressFraction: number;
+  error: string | null;
+
   playSong: (song: Song, playlist?: Song[]) => Promise<void>;
   togglePlayPause: () => Promise<void>;
   seekTo: (millis: number) => Promise<void>;
-  playNext: (isAutoAdvance?: boolean) => Promise<void>;
+  playNext: () => Promise<void>;
   playPrevious: () => Promise<void>;
+
   queue: Song[];
   currentIndex: number;
   isShuffle: boolean;
-  repeatMode: 'off' | 'all' | 'one';
+  isRepeat: boolean;
   toggleShuffle: () => void;
   toggleRepeat: () => void;
+
+
   activeAiPrompt: string | null;
   isAiGenerating: boolean;
   startAiRadio: (prompt: string) => Promise<void>;
-  clearAiRadio: () => void;
+  stopAiRadio: () => void;
 }
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
 
 export function AudioProvider({ children }: { children: React.ReactNode }) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [currentSong, setCurrentSong] = useState<Song | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [totalDuration, setTotalDuration] = useState(0);
-  const [progressFraction, setProgressFraction] = useState(0);
-  const [queue, setQueue] = useState<Song[]>([]);
-  const [currentIndex, setCurrentIndex] = useState<number>(-1);
-  const [isShuffle, setIsShuffle] = useState(false);
-  const [repeatMode, setRepeatMode] = useState<'off' | 'all' | 'one'>('off');
 
-  // AI Radio Variables
+  const audioEngine = useAudioEngine();
+  const queueMgr = useQueueManager();
+  const playHistory = usePlayHistory();
+  const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [activeAiPrompt, setActiveAiPrompt] = useState<string | null>(null);
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [isAiExhausted, setIsAiExhausted] = useState(false);
-  const activeAiPromptRef = useRef(activeAiPrompt);
-  const isAiGeneratingRef = useRef(isAiGenerating);
+  const sessionTokenRef = useRef<string | null>(null);
   const isRefillingRef = useRef(false);
-
-  // ใช้ useRef เพื่อให้ callback ใน setOnPlaybackStatusUpdate เข้าถึงค่าล่าสุดได้
-  const queueRef = useRef(queue);
-  const currentIndexRef = useRef(currentIndex);
-  const isShuffleRef = useRef(isShuffle);
-  const repeatModeRef = useRef(repeatMode);
-
-  useEffect(() => { activeAiPromptRef.current = activeAiPrompt; }, [activeAiPrompt]);
-  useEffect(() => { isAiGeneratingRef.current = isAiGenerating; }, [isAiGenerating]);
-  useEffect(() => { isShuffleRef.current = isShuffle; }, [isShuffle]);
-  useEffect(() => { repeatModeRef.current = repeatMode; }, [repeatMode]);
-  useEffect(() => { queueRef.current = queue; }, [queue]);
-  useEffect(() => { currentIndexRef.current = currentIndex; }, [currentIndex]);
-
-  const seekTo = async (millis: number) => {
-    if (sound) {
-      await sound.setPositionAsync(millis);
+  const currentPlayingRef = useRef<{ songId: string; startTime: number } | null>(null);
+  const isTransitioningRef = useRef(false);
+  const lastHandledEndPositionRef = useRef<number>(0);
+  const playSongTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const seekTo = useCallback(async (millis: number): Promise<void> => {
+    try {
+      await audioEngine.seek(millis);
+    } catch (error) {
+      console.error('[AudioContext] Seek failed:', error);
     }
-  };
+  }, [audioEngine]);
 
-  const playNext = async (isAutoAdvance: boolean = false) => {
-    // "Repeat One" Lifecycle Fix: Reload the track entirely to bypass Expo AV GC unload errors
-    if (isAutoAdvance && repeatModeRef.current === 'one') {
-      const current = queueRef.current[currentIndexRef.current];
-      if (current) {
-        await playSong(current, queueRef.current);
-      }
+  const refillAiRadio = useCallback(async (): Promise<void> => {
+    if (
+      isRefillingRef.current ||
+      isAiExhausted ||
+      !activeAiPrompt ||
+      !sessionTokenRef.current
+    ) {
       return;
     }
 
-    let nextIndex = currentIndexRef.current + 1;
-
-    // Safety Net: Refill Infinite AI Radio BEFORE finishing the queue natively
-    if (activeAiPromptRef.current && !isAiExhausted && !isRefillingRef.current) {
-      if (queueRef.current.length - nextIndex <= 5) {
-        refillAiRadio(); // Fire async background refill
-      }
-    }
-
-    // Handle shuffle
-    if (isShuffleRef.current && queueRef.current.length > 0) {
-      if (queueRef.current.length > 1) {
-        let randIndex = nextIndex;
-        while (randIndex === currentIndexRef.current || randIndex >= queueRef.current.length) {
-          randIndex = Math.floor(Math.random() * queueRef.current.length);
-        }
-        nextIndex = randIndex;
-      } else {
-        nextIndex = 0;
-      }
-    }
-    // Handle repeat all
-    else if (nextIndex >= queueRef.current.length && repeatModeRef.current === 'all') {
-      nextIndex = 0;
-    }
-
-    if (queueRef.current.length > 0 && nextIndex < queueRef.current.length) {
-      const nextSong = queueRef.current[nextIndex];
-      await playSong(nextSong, queueRef.current);
-    } else {
-      console.log("จบเพลย์ลิสต์แล้วครับ! (Playlist finished)");
-      setIsPlaying(false);
-    }
-  };
-
-  const playPrevious = async () => {
-    // ดึงตำแหน่งปัจจุบันมาเช็ค (หน่วยเป็นวินาที)
-    if (currentTime > 3) {
-      await seekTo(0);
-    } else {
-      const prevIndex = currentIndexRef.current - 1;
-      if (queueRef.current.length > 0 && prevIndex >= 0) {
-        const prevSong = queueRef.current[prevIndex];
-        await playSong(prevSong, queueRef.current);
-      }
-    }
-  };
-
-  const recordPlayHistory = async (songId: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) return;
+      isRefillingRef.current = true;
 
-      // 🌟 เช็คบรรทัดนี้: ต้องดึงจาก process.env เท่านั้น
-      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
-      const response = await fetch(`${BACKEND_URL}/api/play/${songId}`, {
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+      const currentIds = queueMgr.state.songs.map((s) => s.id);
+
+      const response = await fetch(`${backendUrl}/api/ai/generate-playlist`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        }
+          Authorization: `Bearer ${sessionTokenRef.current}`,
+        },
+        body: JSON.stringify({
+          prompt: activeAiPrompt,
+          limit: 10,
+          excludeIds: currentIds,
+        }),
       });
-      console.log(`✅ [AudioContext] บันทึกยอดวิวเพลง ID: ${songId} สำเร็จ`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.songs && data.songs.length > 0) {
+        queueMgr.appendSongs(data.songs);
+      } else {
+        setIsAiExhausted(true);
+        console.log('[AudioContext] AI Radio exhausted - no more unique songs');
+      }
     } catch (error) {
-      console.error("❌ [AudioContext] บันทึกยอดวิวไม่สำเร็จ:", error);
-    }
-  };
-
-  const clearAiRadio = () => {
-    setActiveAiPrompt(null);
-    setIsAiExhausted(false);
-    setIsAiGenerating(false);
-  };
-
-  const startAiRadio = async (prompt: string) => {
-    if (!prompt) return;
-    try {
-      clearAiRadio();
-      setIsAiGenerating(true);
-      setActiveAiPrompt(prompt);
-
-      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const payload = {
-        prompt,
-        limit: 10,
-        excludeIds: currentSong ? [currentSong.id] : []
-      };
-
-      const res = await fetch(`${BACKEND_URL}/api/ai/generate-playlist`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify(payload)
-      });
-      
-      if (!res.ok) {
-        console.error("AI Radio Error Response:", await res.text());
-        setIsAiExhausted(true);
-        setActiveAiPrompt(null);
-        return;
-      }
-
-      const data = await res.json();
-
-      if (data.songs && data.songs.length > 0) {
-        const existingIds = new Set(queueRef.current.map(song => song.id));
-        if (currentSong) existingIds.add(currentSong.id);
-        
-        const uniqueNewSongs = data.songs.filter((song: Song) => !existingIds.has(song.id));
-        
-        if (uniqueNewSongs.length === 0) {
-          setIsAiExhausted(true);
-          setActiveAiPrompt(null);
-          return;
-        }
-
-        let newQueue: Song[] = [];
-        if (currentSong && currentIndexRef.current >= 0) {
-          newQueue = queueRef.current.slice(0, currentIndexRef.current + 1);
-        }
-        newQueue = [...newQueue, ...uniqueNewSongs];
-        
-        setQueue(newQueue);
-        
-        if (!currentSong) {
-           await playSong(uniqueNewSongs[0], newQueue);
-        }
-      } else {
-        setIsAiExhausted(true);
-        setActiveAiPrompt(null);
-      }
-    } catch (e) {
-      console.error("AI Radio Error:", e);
-    } finally {
-      setIsAiGenerating(false);
-    }
-  };
-
-  const refillAiRadio = async () => {
-    if (isRefillingRef.current || isAiExhausted || !activeAiPromptRef.current) return;
-    
-    try {
-      isRefillingRef.current = true;
-      const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const currentQueueIds = queueRef.current.map(s => s.id);
-      const payload = {
-        prompt: activeAiPromptRef.current,
-        limit: 5,
-        excludeIds: currentQueueIds
-      };
-
-      const res = await fetch(`${BACKEND_URL}/api/ai/generate-playlist`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-        body: JSON.stringify(payload)
-      });
-      
-      if (!res.ok) {
-        console.error("AI Refill Error Response:", await res.text());
-        setIsAiExhausted(true);
-        setActiveAiPrompt(null);
-        return;
-      }
-
-      const data = await res.json();
-
-      if (data.songs && data.songs.length > 0) {
-        const existingIds = new Set(queueRef.current.map(song => song.id));
-        if (currentSong) existingIds.add(currentSong.id);
-        
-        const uniqueNewSongs = data.songs.filter((song: Song) => !existingIds.has(song.id));
-        
-        if (uniqueNewSongs.length === 0) {
-          setIsAiExhausted(true);
-          setActiveAiPrompt(null);
-          console.log("AI Radio exhausted out of unique songs.");
-          return;
-        }
-
-        setQueue(prev => [...prev, ...uniqueNewSongs]);
-      } else {
-        setIsAiExhausted(true);
-        setActiveAiPrompt(null);
-      }
-    } catch (e) {
-      console.error("AI Refill Error:", e);
+      console.error('[AudioContext] refillAiRadio failed:', error);
+      setIsAiExhausted(true);
     } finally {
       isRefillingRef.current = false;
     }
-  };
+  }, [activeAiPrompt, isAiExhausted, queueMgr]);
 
-  const playNextRef = useRef(playNext);
-  playNextRef.current = playNext; // Bulletproof stale closure fix on every render
+  const playSong = useCallback(
+    async (song: Song, playlist: Song[] = []): Promise<void> => {
+      console.log('[AudioContext] playSong ENTRY:', song.id, song.title);
+      if (!song || !song.id || !song.audio_file_url) {
+        console.error('[AudioContext] Invalid song data:', song);
+        return;
+      }
+      if (isTransitioningRef.current) {
+        console.log('[AudioContext] playSong blocked: transition in progress');
+        return;
+      }
 
-  const isTransitioningRef = useRef(false); // Fix didJustFinish race condition
-
-  const onPlaybackStatusUpdate = (status: any) => {
-    if (status.isLoaded) {
-      // Keep UI playing truth
-      setIsPlaying(status.isPlaying);
-      // 🌟 Ensures your slider stays in-sync natively via position update:
-      const duration = status.durationMillis || 0;
-      setCurrentTime(status.positionMillis / 1000);
-      setTotalDuration(duration / 1000);
-      setProgressFraction(duration > 0 ? status.positionMillis / duration : 0);
-      // 3. Auto-Play Implementation
-      if (status.didJustFinish && !isTransitioningRef.current) {
+      try {
+        console.log('[AudioContext] playSong: Setting transition lock to TRUE');
         isTransitioningRef.current = true;
-        
-        if (playNextRef.current) {
-          playNextRef.current(true); // Triggers explicitly that this is a native auto jump!
+
+        if (playlist.length > 0) {
+          queueMgr.setQueue(playlist);
+          const index = playlist.findIndex((s) => s.id === song.id);
+          if (index >= 0) {
+            queueMgr.jumpToSong(index);
+          }
+
+          if (activeAiPrompt) {
+            setActiveAiPrompt(null);
+            setIsAiExhausted(false);
+          }
         }
-        
-        // Debounce to prevent multiple didJustFinish executions from Expo AV bugs
-        setTimeout(() => {
-          isTransitioningRef.current = false;
-        }, 1500);
+        console.log('[AudioContext] Playing song:', {
+          id: song.id,
+          title: song.title,
+          artist: song.artist,
+          coverUrl: song.cover_image_url,
+          audioUrl: song.audio_file_url,
+        });
+        setCurrentSong(song);
+
+        try {
+          console.log('[AudioContext] Loading audio:', song.audio_file_url);
+          await audioEngine.loadWithFallback(song.audio_file_url, song.fallback_uri);
+          console.log('[AudioContext] Audio loaded successfully, now playing');
+        } catch (loadError) {
+          console.error('[AudioContext] Failed to load audio:', loadError);
+          throw loadError;
+        }
+        try {
+          await audioEngine.play();
+          console.log('[AudioContext] Playback started for:', song.title);
+        } catch (playError) {
+          console.error('[AudioContext] Failed to start playback:', playError);
+          throw playError;
+        }
+
+        currentPlayingRef.current = null;
+        console.log('[AudioContext] playSong SUCCESS - will release lock in finally');
+      } catch (error) {
+        console.error('[AudioContext] Failed to play song:', error);
+      } finally {
+        console.log('[AudioContext] playSong FINALLY: Setting transition lock to FALSE');
+        isTransitioningRef.current = false;
+        console.log('[AudioContext] playSong EXIT - lock released');
       }
-    } else if (status.error) {
-      console.error(`Playback Error: ${status.error}`);
+    },
+    [audioEngine, queueMgr, activeAiPrompt]
+  );
+
+  const playNext = useCallback(async (): Promise<void> => {
+    const nextSong = queueMgr.nextSong();
+    console.log('[AudioContext] playNext: Current song:', currentSong?.id, 'Next song:', nextSong?.id);
+
+    if (!nextSong) {
+      console.log('[AudioContext] No next song available');
+      return;
     }
-  };
+    if (activeAiPrompt && !isAiExhausted && queueMgr.shouldRefillQueue()) {
+      console.log('[AudioContext] Refilling AI radio queue');
+      refillAiRadio();
+    }
+    console.log('[AudioContext] Calling playSong with:', nextSong.id, nextSong.title);
+    await playSong(nextSong, queueMgr.state.songs);
+  }, [queueMgr, activeAiPrompt, isAiExhausted, refillAiRadio, playSong]);
 
+  const playRandomNext = useCallback(async (): Promise<void> => {
+    const randomSong = queueMgr.getRandomNextSong();
+    console.log('[AudioContext] playRandomNext: Current song:', currentSong?.id, 'Random song:', randomSong?.id);
 
-  const playSong = async (song: Song, playlist: Song[] = []) => {
+    if (!randomSong) {
+      console.log('[AudioContext] No random song available (queue ended)');
+      return;
+    }
+
+    if (activeAiPrompt && !isAiExhausted && queueMgr.shouldRefillQueue()) {
+      console.log('[AudioContext] Refilling AI radio queue');
+      refillAiRadio();
+    }
+
+    console.log('[AudioContext] Calling playSong with random song:', randomSong.id, randomSong.title);
+
+    await playSong(randomSong, queueMgr.state.songs);
+  }, [queueMgr, activeAiPrompt, isAiExhausted, refillAiRadio, playSong]);
+
+  const playPrevious = useCallback(async (): Promise<void> => {
+    if (audioEngine.state.position > 3000) {
+
+      await seekTo(0);
+    } else {
+
+      const prevSong = queueMgr.previousSong();
+      if (prevSong) {
+        await playSong(prevSong, queueMgr.state.songs);
+      }
+    }
+  }, [audioEngine.state.position, queueMgr, seekTo, playSong]);
+
+  const togglePlayPause = useCallback(async (): Promise<void> => {
     try {
-      setIsLoading(true);
-
-      // Manual Override Safety Net
-      if (playlist.length > 0 && playlist !== queueRef.current && !isAiGeneratingRef.current) {
-        clearAiRadio();
+      if (audioEngine.state.isPlaying) {
+        await audioEngine.pause();
+      } else {
+        await audioEngine.play();
       }
-
-      // Queue Handle
-      if (playlist.length > 0) {
-        setQueue(playlist);
-        setCurrentIndex(playlist.findIndex(s => s.id === song.id));
-      }
-      // Cleanup
-      if (sound) {
-        await sound.unloadAsync();
-      }
-      // Execution mapping to correctly load with bound listener
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: song.audio_file_url },
-        { shouldPlay: true, progressUpdateIntervalMillis: 500 }, // Updates slider every 0.5s smoothly
-        onPlaybackStatusUpdate
-      );
-      setSound(newSound);
-      setCurrentSong(song);
-      setIsPlaying(true);
-
-      recordPlayHistory(song.id);
     } catch (error) {
-      console.error("Error playing sound", error);
-    } finally {
-      setIsLoading(false);
+      console.error('[AudioContext] togglePlayPause failed:', error);
     }
-  };
-  const togglePlayPause = async () => {
-    if (!sound) return;
-    if (isPlaying) {
-      await sound.pauseAsync();
-    } else {
-      await sound.playAsync();
-    }
-  };
+  }, [audioEngine]);
 
-  const toggleShuffle = () => {
-    if (!isShuffle) {
-      setIsShuffle(true);
-      setRepeatMode('off');
-    } else {
-      setIsShuffle(false);
-    }
-  };
+  const toggleShuffle = useCallback((): void => {
+    const newShuffle = queueMgr.toggleShuffle();
+    console.log('[AudioContext] Shuffle toggled:', newShuffle ? 'ON' : 'OFF');
 
-  const toggleRepeat = () => {
-    if (repeatMode === 'off') {
-      setRepeatMode('all');
-      setIsShuffle(false);
-    } else if (repeatMode === 'all') {
-      setRepeatMode('one');
-      setIsShuffle(false);
-    } else {
-      setRepeatMode('off');
+    if (newShuffle && queueMgr.state.repeat) {
+      console.log('[AudioContext] Disabling repeat because shuffle is enabled');
+      queueMgr.toggleRepeat(); // Disable repeat when shuffle enabled
     }
-  };
+  }, [queueMgr]);
 
-  // ล้างหน่วยความจำเมื่อ Component ถูกทำลาย
-  useEffect(() => {
-    return () => {
-      if (sound) {
-        sound.unloadAsync();
+  const toggleRepeat = useCallback((): void => {
+    const newRepeat = queueMgr.toggleRepeat();
+    console.log('[AudioContext] Repeat toggled:', newRepeat ? 'ON (repeat current song)' : 'OFF (play next song)');
+
+    if (newRepeat && queueMgr.state.shuffle) {
+      console.log('[AudioContext] Disabling shuffle because repeat is enabled');
+      queueMgr.toggleShuffle(); // Disable shuffle when repeat enabled
+    }
+  }, [queueMgr]);
+
+  const startAiRadio = useCallback(
+    async (prompt: string): Promise<void> => {
+      if (!prompt || !sessionTokenRef.current) {
+        console.error('[AudioContext] Invalid prompt or no auth token');
+        return;
       }
-    };
-  }, [sound]);
 
-  // ตั้งค่า Audio Mode ครั้งเดียวตอนเริ่ม
-  useEffect(() => {
-    const configureAudio = async () => {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        staysActiveInBackground: true,
-        playsInSilentModeIOS: true,
-        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-        shouldDuckAndroid: true,
-        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-        playThroughEarpieceAndroid: false
-      });
-    };
-    configureAudio();
+      try {
+        setIsAiGenerating(true);
+        setActiveAiPrompt(prompt);
+        setIsAiExhausted(false);
+
+        const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+        const response = await fetch(`${backendUrl}/api/ai/generate-playlist`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${sessionTokenRef.current}`,
+          },
+          body: JSON.stringify({
+            prompt,
+            limit: 20,
+            excludeIds: currentSong ? [currentSong.id] : [],
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (!data.songs || data.songs.length === 0) {
+          setIsAiExhausted(true);
+          setActiveAiPrompt(null);
+          return;
+        }
+        queueMgr.setQueue(data.songs);
+        await playSong(data.songs[0], data.songs);
+      } catch (error) {
+        console.error('[AudioContext] startAiRadio failed:', error);
+        setIsAiExhausted(true);
+        setActiveAiPrompt(null);
+      } finally {
+        setIsAiGenerating(false);
+      }
+    },
+    [currentSong, playSong, queueMgr]
+  );
+
+  const stopAiRadio = useCallback((): void => {
+    setActiveAiPrompt(null);
+    setIsAiExhausted(false);
+    setIsAiGenerating(false);
+    isRefillingRef.current = false;
   }, []);
 
+  useEffect(() => {
+    const setupAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          sessionTokenRef.current = session.access_token;
+          playHistory.setAuthToken(session.access_token);
+        }
+      } catch (error) {
+        console.error('[AudioContext] Failed to setup auth:', error);
+      }
+    };
+
+    setupAuth();
+
+    const subscription = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        sessionTokenRef.current = session.access_token;
+        playHistory.setAuthToken(session.access_token);
+      }
+    });
+
+    return () => subscription?.data.subscription?.unsubscribe();
+  }, [playHistory]);
+
+  useEffect(() => {
+    const song = queueMgr.getCurrentSong();
+    setCurrentSong(song as Song | null);
+    lastHandledEndPositionRef.current = 0;
+  }, [queueMgr.state.currentIndex, queueMgr.state.songs, queueMgr.state.shuffle]);
+
+  useEffect(() => {
+    if (!audioEngine.state.isLoading && audioEngine.state.duration > 0 && !isTransitioningRef.current) {
+      const isFinished = audioEngine.state.position >= audioEngine.state.duration * 0.99;
+      if (isFinished && audioEngine.state.isPlaying === false && currentSong) {
+        if (audioEngine.state.position > lastHandledEndPositionRef.current) {
+          lastHandledEndPositionRef.current = audioEngine.state.position;
+          if (queueMgr.state.repeat) {
+            console.log('[AudioContext] Song finished - REPEAT ON: Replaying current song', currentSong.title);
+            audioEngine.seek(0).then(() => {
+              audioEngine.play().catch((err) => {
+                console.error('[AudioContext] Failed to replay song:', err);
+                playNext();
+              });
+            });
+          } else if (queueMgr.state.shuffle) {
+            console.log('[AudioContext] Song finished - SHUFFLE ON: Picking random song from queue');
+            playRandomNext();
+          } else {
+            console.log('[AudioContext] Song finished - Normal mode: Moving to next song');
+            playNext();
+          }
+        }
+      }
+    }
+  }, [audioEngine.state.position, audioEngine.state.duration, audioEngine.state.isPlaying, currentSong, playNext, playRandomNext, queueMgr.state.repeat, queueMgr.state.shuffle, audioEngine, queueMgr]);
+  useEffect(() => {
+    if (activeAiPrompt && !isAiExhausted && queueMgr.shouldRefillQueue()) {
+      refillAiRadio();
+    }
+  }, [queueMgr.state.currentIndex, activeAiPrompt, isAiExhausted, refillAiRadio]);
+
+  useEffect(() => {
+    if (!currentSong || !audioEngine.state.duration) return;
+
+    const playThreshold = Math.max(audioEngine.state.duration * 0.8, 30000);
+
+    if (
+      audioEngine.state.position >= playThreshold &&
+      currentPlayingRef.current === null
+    ) {
+      currentPlayingRef.current = {
+        songId: currentSong.id,
+        startTime: Date.now(),
+      };
+
+      playHistory.recordPlay(
+        currentSong.id,
+        audioEngine.state.duration,
+        audioEngine.state.position
+      );
+
+      queueMgr.recordPlay(currentSong.id);
+    }
+  }, [audioEngine.state.position, audioEngine.state.duration, currentSong, playHistory]);
+
   return (
-    <AudioContext.Provider value={{
-      currentSong, isPlaying, isLoading, currentTime, totalDuration, progressFraction,
-      playSong, togglePlayPause, seekTo, playNext, playPrevious, queue, currentIndex,
-      isShuffle, repeatMode, toggleShuffle, toggleRepeat,
-      activeAiPrompt, isAiGenerating, startAiRadio, clearAiRadio
-    }}>
+    <AudioContext.Provider
+      value={{
+        // Current state
+        currentSong,
+        isPlaying: audioEngine.state.isPlaying,
+        isLoading: audioEngine.state.isLoading,
+        // NOTE: All timestamps in milliseconds to match AudioEngine units
+        currentTime: audioEngine.state.position,
+        totalDuration: audioEngine.state.duration,
+        progressFraction: audioEngine.state.duration > 0
+          ? audioEngine.state.position / audioEngine.state.duration
+          : 0,
+        error: audioEngine.state.error,
+
+        // Playback controls
+        playSong,
+        togglePlayPause,
+        seekTo,
+        playNext,
+        playPrevious,
+
+        // Queue state
+        queue: queueMgr.state.songs,
+        currentIndex: queueMgr.state.currentIndex,
+        isShuffle: queueMgr.state.shuffle,
+        isRepeat: queueMgr.state.repeat,
+
+        // Queue controls
+        toggleShuffle,
+        toggleRepeat,
+
+        // AI Radio state
+        activeAiPrompt,
+        isAiGenerating,
+
+        // AI Radio controls
+        startAiRadio,
+        stopAiRadio,
+      }}
+    >
       {children}
     </AudioContext.Provider>
   );
 }
 
-export const useAudio = () => {
+/**
+ * useAudio: Hook to consume AudioContext
+ * Throws error if used outside AudioProvider
+ */
+export const useAudio = (): AudioContextType => {
   const context = useContext(AudioContext);
-  if (!context) throw new Error('useAudio must be used within an AudioProvider');
+  if (!context) {
+    throw new Error('useAudio must be used within an AudioProvider');
+  }
   return context;
 };

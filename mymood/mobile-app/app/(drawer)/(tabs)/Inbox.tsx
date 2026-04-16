@@ -1,18 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Image, RefreshControl, ActivityIndicator, Alert } from 'react-native';
-import { supabase } from '../../../lib/supabase'; // ปรับ Path ให้ตรง
-import { Megaphone, UserPlus, Music, Trash2, MailOpen } from 'lucide-react-native'; // นำเข้าไอคอนสื่อความหมาย
-import { useFocusEffect } from 'expo-router'; // เพื่อรีเฟรชข้อมูลเมื่อกลับมาที่หน้าหนี้
+import { View, Text, FlatList, TouchableOpacity, Image, RefreshControl, ActivityIndicator } from 'react-native';
+import { supabase } from '../../../lib/supabase';
+import { Megaphone, UserPlus, Music, Trash2, MailOpen } from 'lucide-react-native';
+import { useFocusEffect } from 'expo-router';
+import { useToast } from '../../../context/ToastContext';
 
 export default function InboxScreen() {
+  const { showToast } = useToast();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  // 🌟 1. ดึง URL ของ Backend จาก environment variable
   const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
-
-  // 🌟 2. ฟังก์ชันดึงข้อมูลแจ้งเตือนจาก Backend
   const fetchNotifications = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -34,31 +32,24 @@ export default function InboxScreen() {
       setNotifications(data);
     } catch (error: any) {
       console.error('Fetch Notifications Error:', error);
-      Alert.alert('เกิดข้อผิดพลาด', error.message);
+      showToast(`Error: ${error.message}`, 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [BACKEND_URL]);
 
-  // 🌟 3. เรียกดึงข้อมูลเมื่อเข้าหน้านี้ (และเมื่อกลับมาที่หน้าหนี้)
   useFocusEffect(
     useCallback(() => {
       fetchNotifications();
     }, [fetchNotifications])
   );
 
-  // 🌟 4. ฟังก์ชันกดอ่านแจ้งเตือน
   const handlePressNotification = async (notificationId: string, isRead: boolean) => {
-    // ถ้าอ่านแล้ว ไม่ต้องยิง API ไปบอก Server
     if (isRead) return;
-
-    // หาแจ้งเตือนที่กดแล้วเปลี่ยนสถานะใน UI ทันที (เพื่อให้ดูเร็ว)
     setNotifications((prev) =>
       prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
     );
-
-    // ยิง API ไปบอก Server ว่าคนนี้อ่านแล้ว
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -67,10 +58,8 @@ export default function InboxScreen() {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${session.access_token}` },
       });
-      // ไม่ต้องทำ Alert เพราะ UI เปลี่ยนสถานะไปแล้ว
     } catch (error) {
       console.error('Error marking as read:', error);
-      // ถ้า Error อาจจะย้อน UI กลับมา แต่ส่วนใหญ่ปล่อยไปได้ เพราะหน้าเว็บจะเห็นถูก
     }
   };
 
@@ -79,7 +68,6 @@ export default function InboxScreen() {
     fetchNotifications();
   };
 
-  // 🌟 5. ฟังก์ชันเลือกไอคอนและสีตามประเภท
   const getIconByType = (type: string) => {
     switch (type) {
       case 'admin_notice':
@@ -93,7 +81,6 @@ export default function InboxScreen() {
     }
   };
 
-  // 🌟 6. คอมโพเนนต์แสดงผลทีละรายการ
   const renderNotificationItem = ({ item }: { item: any }) => {
     const { icon, bgColor } = getIconByType(item.type);
 

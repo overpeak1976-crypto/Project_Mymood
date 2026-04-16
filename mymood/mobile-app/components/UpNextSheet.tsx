@@ -1,20 +1,66 @@
 import React, { forwardRef, useMemo, useState } from 'react';
-import { View, Text, Image, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Image, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import BottomSheet, { BottomSheetFlatList } from '@gorhom/bottom-sheet';
 import { Sparkles, MoreVertical, Play, Pause, SkipForward } from 'lucide-react-native';
 import { useAudio, Song } from '../context/AudioContext';
+import { useToast } from '../context/ToastContext';
 import { BlurView } from 'expo-blur';
+import { httpClient } from '@/lib/httpClient';
+import { validators } from '@/lib/validators';
+import { crashReporter } from '@/lib/crashReporter';
 
 const UpNextSheet = forwardRef<BottomSheet, {}>((props, ref) => {
   // Snap points for the bottom sheet natively matching standard players
   const snapPoints = useMemo(() => ['50%', '90%'], []);
   const { queue, currentSong, isPlaying, togglePlayPause, playNext, playSong, activeAiPrompt, isAiGenerating, startAiRadio } = useAudio();
+  const { showToast } = useToast();
   const [prompt, setPrompt] = useState('');
+  const handleGenerateAI = async () => {
+    if (!prompt.trim() || isAiGenerating) return;
+    try {
+      validators.validatePrompt(prompt);
+      const excludeIds = queue.map((song) => song.id);
+      if (currentSong?.id) {
+        excludeIds.push(currentSong.id);
+      }
+      interface AIPlaylistResponse {
+        songs: Song[];
+        prompt: string;
+        count: number;
+      }
 
-  const handleGenerateAI = () => {
-    if (!prompt || isAiGenerating) return;
-    startAiRadio(prompt);
-    setPrompt('');
+      const response = await httpClient.post<AIPlaylistResponse>('/api/ai-playlist/generate', {
+        prompt: prompt.trim(),
+        limit: 20,
+        excludeIds,
+      });
+      await startAiRadio(prompt.trim());
+      setPrompt('');
+      showToast(`Generated ${response.songs.length} tracks based on your vibe!`, 'success');
+    } catch (error) {
+      crashReporter.captureError(error as Error, {
+        context: 'UpNextSheet.handleGenerateAI',
+        prompt: prompt.substring(0, 50),
+      });
+
+      let errorMessage = 'Failed to generate AI playlist';
+      if (error instanceof Error) {
+        if (error.message.includes('validation')) {
+          errorMessage = 'Please enter a valid mood or genre (3-100 characters)';
+        } else if (error.message.includes('timeout') || error.message.includes('network')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+          errorMessage = 'Authentication error. Please log in again.';
+        } else if (error.message.includes('429')) {
+          errorMessage = 'Too many requests. Please wait a moment and try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      showToast(errorMessage, 'error');
+      console.error('[UpNextSheet] AI Radio Error:', error);
+    }
   };
 
   const renderItem = ({ item, index }: { item: Song; index: number }) => {
@@ -23,7 +69,6 @@ const UpNextSheet = forwardRef<BottomSheet, {}>((props, ref) => {
       <TouchableOpacity
         onPress={() => {
           playSong(item, queue);
-          // Optional: ref.current?.collapse() if you want it to hide on select
         }}
         className="flex-row items-center justify-between px-6 py-3"
       >

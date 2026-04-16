@@ -4,11 +4,12 @@ import {
     View, Text, TextInput, FlatList, TouchableOpacity,
     Image, ActivityIndicator, StyleSheet, Keyboard,
 } from "react-native";
-import { Search, X, Sparkles, Music } from "lucide-react-native";
+import { Search, X, Sparkles, Music, Heart } from "lucide-react-native";
 import MiniPlayer from "../../../components/MiniPlayer";
 import SongContextMenu, { SongMenuItem } from "../../../components/SongContextMenu";
 import { supabase } from "../../../lib/supabase";
 import { useAudio } from "../../../context/AudioContext";
+import { useUser } from "../../../context/UserContext";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const DEBOUNCE_MS = 500;
@@ -21,37 +22,13 @@ type SearchResult = SongMenuItem & {
 
 export default function AISearchScreen() {
     const { playSong } = useAudio();
-
+    const { likedSongIds } = useUser();
     const [query, setQuery] = useState("");
     const [results, setResults] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
-    const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
-
-    // ── Long-press context menu ─────────────────────────────────────────────
     const [selectedSong, setSelectedSong] = useState<SongMenuItem | null>(null);
-
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // ── Fetch liked ids on mount for heart state ────────────────────────────
-    useEffect(() => {
-        (async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (!session?.access_token) return;
-                const res = await fetch(`${BACKEND_URL}/api/likes/my-likes`, {
-                    headers: { Authorization: `Bearer ${session.access_token}` },
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    const ids: string[] = (data.liked_songs || []).map((s: any) => s.id);
-                    setLikedIds(new Set(ids));
-                }
-            } catch { /* best effort */ }
-        })();
-    }, []);
-
-    // ── Debounced search ────────────────────────────────────────────────────
     const doSearch = useCallback(async (q: string) => {
         if (!q.trim()) {
             setResults([]);
@@ -88,7 +65,7 @@ export default function AISearchScreen() {
             setLoading(false);
             return;
         }
-        setLoading(true); // show spinner immediately while debouncing
+        setLoading(true);
         debounceTimer.current = setTimeout(() => doSearch(text), DEBOUNCE_MS);
     };
 
@@ -100,16 +77,6 @@ export default function AISearchScreen() {
         if (debounceTimer.current) clearTimeout(debounceTimer.current);
     };
 
-    // ── Like toggle callback ────────────────────────────────────────────────
-    const handleLikeToggled = (songId: string, isNowLiked: boolean) => {
-        setLikedIds((prev) => {
-            const next = new Set(prev);
-            isNowLiked ? next.add(songId) : next.delete(songId);
-            return next;
-        });
-    };
-
-    // ── Render each result row ──────────────────────────────────────────────
     const renderItem = ({ item }: { item: SearchResult }) => {
         const isAI = item.match_type === "ai_vibe";
         const coverUri = item.cover_image_url ||
@@ -131,6 +98,13 @@ export default function AISearchScreen() {
                     {item.genre ? <Text style={styles.resultGenre} numberOfLines={1}>{item.genre}</Text> : null}
                 </View>
 
+                {/* Like Indicator */}
+                {likedSongIds.has(item.id) && (
+                    <View className="mr-3">
+                        <Heart size={14} color="#EF4444" fill="#EF4444" />
+                    </View>
+                )}
+
                 {/* Match type badge */}
                 <View style={[styles.badge, isAI ? styles.badgeAI : styles.badgeStd]}>
                     {isAI
@@ -145,7 +119,6 @@ export default function AISearchScreen() {
         );
     };
 
-    // ── Empty / idle states ─────────────────────────────────────────────────
     const renderEmpty = () => {
         if (loading) return null;
         if (!hasSearched) {
@@ -168,7 +141,6 @@ export default function AISearchScreen() {
         );
     };
 
-    // ── Main ────────────────────────────────────────────────────────────────
     return (
         <View style={{ flex: 1, backgroundColor: "#F5F3FF" }}>
 
@@ -227,13 +199,10 @@ export default function AISearchScreen() {
 
             <MiniPlayer />
 
-            {/* Context menu */}
             <SongContextMenu
                 visible={!!selectedSong}
                 song={selectedSong}
                 onClose={() => setSelectedSong(null)}
-                likedIds={likedIds}
-                onLikeToggled={handleLikeToggled}
             />
         </View>
     );

@@ -1,15 +1,16 @@
 import {
   View, Text, Image, TouchableOpacity,
-  StyleSheet, Alert, ActivityIndicator,
+  StyleSheet, ActivityIndicator,
 } from "react-native";
 import { Heart, ListPlus, Share2, ChevronLeft, ListMusic } from "lucide-react-native";
 import { supabase } from "../lib/supabase";
 import BottomSheet, { BottomSheetView, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useUser } from "../context/UserContext";
+import { useToast } from "../context/ToastContext";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 export type SongMenuItem = {
   id: string;
   title: string;
@@ -19,33 +20,24 @@ export type SongMenuItem = {
 };
 
 type Playlist = { id: string; name: string; cover_image_url?: string; track_count: number };
-
 interface SongContextMenuProps {
   visible: boolean;
   song: SongMenuItem | null;
   onClose: () => void;
-  /** Pass the current user's liked song IDs so the heart shows the correct state */
-  likedIds?: Set<string>;
-  /** Called after a successful like/unlike so the parent can update its state */
-  onLikeToggled?: (songId: string, isNowLiked: boolean) => void;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function SongContextMenu({
   visible,
   song,
   onClose,
-  likedIds = new Set(),
-  onLikeToggled,
 }: SongContextMenuProps) {
+  const { likedSongIds, toggleLike } = useUser();
+  const { showToast } = useToast();
   const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
   const [isAddingTrack, setIsAddingTrack] = useState(false);
-
-  const isLiked = song ? likedIds.has(song.id) : false;
-
-  // ── Close & reset ────────────────────────────────────────────────────────────
+  const isLiked = song ? likedSongIds.has(song.id) : false;
   const sheetRef = useRef<BottomSheet>(null);
 
   useEffect(() => {
@@ -63,32 +55,12 @@ export default function SongContextMenu({
     onClose();
   };
 
-  // ── Like / Unlike ────────────────────────────────────────────────────────────
   const handleToggleLike = async () => {
     if (!song) return;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
-      const res = await fetch(`${BACKEND_URL}/api/likes/toggle`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ song_id: song.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      onLikeToggled?.(song.id, data.isLiked);
-    } catch (err: any) {
-      Alert.alert("Error", err.message);
-    }
+    await toggleLike(song as any);
     handleClose();
   };
 
-  // ── Open playlist selector (lazy-loads playlists) ────────────────────────────
   const openPlaylistSelector = async () => {
     setLoadingPlaylists(true);
     setShowPlaylistSelector(true);
@@ -103,14 +75,13 @@ export default function SongContextMenu({
       if (!res.ok) throw new Error(data.error);
       setPlaylists(data.playlists || []);
     } catch (err: any) {
-      Alert.alert("Error", err.message);
+      showToast(`Error: ${err.message}`, 'error');
       setShowPlaylistSelector(false);
     } finally {
       setLoadingPlaylists(false);
     }
   };
 
-  // ── Add to playlist ──────────────────────────────────────────────────────────
   const handleAddToPlaylist = async (playlist: Playlist) => {
     if (!song) return;
     setIsAddingTrack(true);
@@ -130,38 +101,34 @@ export default function SongContextMenu({
       if (!res.ok) throw new Error(data.error);
 
       handleClose();
-      Alert.alert("เพิ่มสำเร็จ! 🎵", `"${song.title}" เข้า "${playlist.name}" แล้ว`);
+      showToast(`"${song.title}" added to "${playlist.name}"`, 'success');
     } catch (err: any) {
-      Alert.alert("Error", err.message);
+      showToast(`Error: ${err.message}`, 'error');
     } finally {
       setIsAddingTrack(false);
     }
   };
 
-  // ── Share (placeholder) ──────────────────────────────────────────────────────
   const handleShare = () => {
     console.log("Share:", song?.title);
-    // TODO: integrate expo-sharing or deep-link based sharing
     handleClose();
   };
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
   const coverUri =
     song?.cover_image_url ||
     (song ? `https://ui-avatars.com/api/?name=${encodeURIComponent(song.title)}&background=7C3AED&color=fff` : "");
 
-
-
   return (
     <BottomSheet
       ref={sheetRef}
-      index={-1}
       enableDynamicSizing={true}
+      snapPoints={useMemo(() => showPlaylistSelector ? ['60%'] : ['30%'], [showPlaylistSelector])}
       enablePanDownToClose={true}
       onClose={handleClose}
       backdropComponent={renderBackdrop}
       backgroundStyle={{ borderRadius: 32 }}
       handleIndicatorStyle={{ backgroundColor: "#D1D5DB", width: 40, height: 4, marginTop: 10 }}
+      index={-1}
     >
       <BottomSheetView style={styles.sheet}>
         {song && (

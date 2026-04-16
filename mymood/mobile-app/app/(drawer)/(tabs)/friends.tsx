@@ -1,19 +1,19 @@
 import "../../global.css";
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, ActivityIndicator, Alert, RefreshControl } from "react-native";
-
+import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
 import { Search, UserPlus, Check, X, ChevronRight, Users, Send } from "lucide-react-native";
 import { supabase } from "../../../lib/supabase";
+import { useToast } from "../../../context/ToastContext";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function FriendsScreen() {
+  const { showToast } = useToast();
   const [searchText, setSearchText] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-
   const [requests, setRequests] = useState<any[]>([]);
   const [sentRequests, setSentRequests] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
@@ -125,12 +125,12 @@ export default function FriendsScreen() {
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error);
-      Alert.alert("สำเร็จ!", "ส่งคำขอเป็นเพื่อนไปแล้ว รอเขารับแอดนะ ⏳");
+      showToast("Friend request sent!", "success");
       setSearchText('');
       setSearchResults([]);
       setRefreshTrigger(t => t + 1);
     } catch (error: any) {
-      Alert.alert("อ๊ะ!", error.message);
+      showToast(`${error.message}`, 'error');
     }
   };
 
@@ -161,7 +161,7 @@ export default function FriendsScreen() {
       if (action === 'confirm') setRefreshTrigger(t => t + 1);
 
     } catch (error: any) {
-      Alert.alert("Error", error.message);
+      showToast(`Error: ${error.message}`, 'error');
     }
   };
 

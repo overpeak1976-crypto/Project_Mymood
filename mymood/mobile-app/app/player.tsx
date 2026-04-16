@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import BottomSheet from '@gorhom/bottom-sheet';
 import UpNextSheet from '../components/UpNextSheet';
 import { useAudio } from '../context/AudioContext';
+import { useToast } from '../context/ToastContext';
 import Slider from '@react-native-community/slider';
 
 const { width, height } = Dimensions.get('window');
@@ -45,14 +46,11 @@ const ModernSpinner = ({ size = 24, color = "#7C3AED" }) => {
 };
 
 const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
-
 const BouncyButton = ({ onPress, children, disabled, className, style }: any) => {
   const scale = useRef(new Animated.Value(1)).current;
-
   const onPressIn = () => {
     Animated.spring(scale, { toValue: 0.9, useNativeDriver: true }).start();
   };
-
   const onPressOut = () => {
     Animated.spring(scale, { toValue: 1, friction: 3, tension: 40, useNativeDriver: true }).start();
   };
@@ -76,16 +74,14 @@ export default function PlayerScreen() {
   const router = useRouter();
   const {
     currentSong, isPlaying, togglePlayPause, isLoading, seekTo, totalDuration,
-    currentTime, playNext, playPrevious, isShuffle, repeatMode, toggleShuffle, toggleRepeat
+    currentTime, playNext, playPrevious, isShuffle, isRepeat, toggleShuffle, toggleRepeat
   } = useAudio();
+  const { showToast } = useToast();
   const [isSliding, setIsSliding] = useState(false);
   const [sliderValue, setSliderValue] = useState(0);
   const [isImageLoading, setIsImageLoading] = useState(true);
-
-  // Up Next Bottom Sheet Ref
   const sheetRef = useRef<BottomSheet>(null);
   const openSheet = () => sheetRef.current?.expand();
-
   const breathingScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -106,20 +102,24 @@ export default function PlayerScreen() {
       ])
     ).start();
   }, []);
+
   useEffect(() => {
     setIsImageLoading(true);
   }, [currentSong?.id]);
 
   useEffect(() => {
-    if (!isSliding) {
-      setSliderValue(currentTime || 0);
+    if (!isSliding && currentTime !== null && currentTime !== undefined) {
+      setSliderValue(currentTime);
     }
   }, [currentTime, isSliding]);
 
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds <= 0) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
+  const formatTime = (milliseconds: number): string => {
+    if (!Number.isFinite(milliseconds) || milliseconds < 0) return "0:00";
+
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
@@ -137,6 +137,7 @@ export default function PlayerScreen() {
 
       {/* พื้นหลัง */}
       <Animated.Image
+        key={`bg-${currentSong.id}`}
         source={{ uri: currentSong.cover_image_url }}
         className="absolute inset-0"
         resizeMode="cover"
@@ -172,10 +173,12 @@ export default function PlayerScreen() {
           >
             {/* โชว์รูปภาพ */}
             <Image
+              key={`artwork-${currentSong.id}`}
               source={{ uri: currentSong.cover_image_url }}
               style={{ width: '100%', height: '100%', position: 'absolute' }}
               className="rounded-[40px]"
-              onLoadEnd={() => setIsImageLoading(false)} // ดักจับเมื่อรูปโหลดเสร็จ
+              onLoadEnd={() => setIsImageLoading(false)}
+              onError={() => setIsImageLoading(false)}
             />
 
             {/* โชว์ Loading Spinner ถ้าเน็ตช้ารูปยังไม่มา */}
@@ -201,69 +204,115 @@ export default function PlayerScreen() {
         </View>
 
         {/* --- Timeline / Seekbar Section --- */}
-        <View className="mb-10 w-full" >
+        <View className="mb-10 w-full">
+          {/* Slider: All values in milliseconds (matching AudioContext) */}
           <Slider
             tabIndex={0}
             style={{ width: '100%', height: 67 }}
             minimumValue={0}
-            maximumValue={totalDuration || 1}
+            maximumValue={totalDuration && totalDuration > 0 ? totalDuration : 1}
             value={sliderValue}
+            // Thumb tracks finger perfectly: Updates locally without waiting for background sync
             onValueChange={(value) => {
               setIsSliding(true);
-              setSliderValue(value);
+              setSliderValue(value); // ← Local state updates instantly
             }}
             minimumTrackTintColor="#FFFFFF"
             maximumTrackTintColor="#FFFFFF40"
             thumbTintColor="#ffffff"
+            // Seek after dragging completes: Safe state transition in finally block
             onSlidingComplete={async (value) => {
-              await seekTo(value * 1000);
-              setIsSliding(false);
+              try {
+                // Seek directly (value is already in milliseconds)
+                await seekTo(value);
+              } catch (error) {
+                console.error('[PlayerScreen] Seek failed:', error);
+              } finally {
+                // Release lock after seek completes
+                setIsSliding(false);
+              }
             }}
           />
+          {/* Time displays: Remaining time on right with negative sign */}
           <View className="flex-row justify-between px-4 mt-[-10px]">
-            <Text className="text-gray-300 text-xs font-open-sans">{formatTime(sliderValue)}</Text>
-            <Text className="text-gray-300 text-xs font-open-sans">-{formatTime((totalDuration || 0) - sliderValue)}</Text>
+            <Text className="text-gray-300 text-xs font-open-sans">
+              {formatTime(sliderValue)}
+            </Text>
+            <Text className="text-gray-300 text-xs font-open-sans">
+              -{formatTime((totalDuration || 0) - sliderValue)}
+            </Text>
           </View>
         </View>
 
         {/* --- Controls Section --- */}
         <View className="flex-row items-center justify-between px-2 mb-12">
-          <BouncyButton onPress={toggleShuffle}>
-            <Shuffle color={isShuffle ? "#7C3AED" : "#FFF"} size={24} style={{ opacity: isShuffle ? 1 : 0.6 }} />
+          {/* Shuffle Button: Active = Purple, Inactive = White (0.6 opacity) */}
+          <BouncyButton onPress={() => {
+            console.log('[PlayerScreen] Shuffle button pressed');
+            const newShuffleState = !isShuffle;
+            toggleShuffle();
+
+            // Show premium toast notification
+            if (newShuffleState) {
+              showToast('Songs in this tag have been shuffled. Playing randomly through remaining songs.', 'success');
+            } else {
+              showToast('Playing songs in this tag in original order.', 'info');
+            }
+          }}>
+            <Shuffle
+              color={isShuffle ? "#7C3AED" : "#FFFFFF"}
+              size={24}
+              style={{ opacity: isShuffle ? 1 : 0.6 }}
+            />
           </BouncyButton>
 
-          <BouncyButton onPress={playPrevious}>
+          {/* Previous Button */}
+          <BouncyButton onPress={() => {
+            console.log('[PlayerScreen] Previous button pressed');
+            playPrevious();
+          }}>
             <SkipBack color="#FFF" size={32} fill="#FFF" />
           </BouncyButton>
 
-          {/* ปุ่ม Play/Pause กลาง */}
+          {/* Play/Pause Button (Center): Optimistic response with instant visual feedback */}
           <BouncyButton
-            onPress={togglePlayPause}
+            onPress={() => {
+              console.log('[PlayerScreen] Play/Pause button pressed');
+              togglePlayPause();
+            }}
             disabled={isLoading}
             className="w-20 h-20 bg-white rounded-full items-center justify-center shadow-md shadow-black/30"
           >
             {isLoading ? (
-              // 🌟 เปลี่ยน ActivityIndicator เป็น ModernSpinner สีดำ
+              // Show spinner while loading
               <ModernSpinner color="#000" size={36} />
             ) : isPlaying ? (
+              // Show pause icon when playing
               <Pause color="#000" size={36} fill="#000" />
             ) : (
+              // Show play icon when paused
               <Play color="#000" size={36} fill="#000" className="ml-2" />
             )}
           </BouncyButton>
 
-          <BouncyButton onPress={() => playNext()}>
+          {/* Next Button */}
+          <BouncyButton onPress={() => {
+            console.log('[PlayerScreen] Next button pressed');
+            playNext();
+          }}>
             <SkipForward color="#FFF" size={32} fill="#FFF" />
           </BouncyButton>
 
-          <BouncyButton onPress={toggleRepeat}>
-            {repeatMode === 'one' ? (
-              <Repeat1 color="#7C3AED" size={24} />
-            ) : repeatMode === 'all' ? (
-              <Repeat color="#7C3AED" size={24} />
-            ) : (
-              <Repeat color="#FFF" size={24} style={{ opacity: 0.6 }} />
-            )}
+          {/* Repeat Button: Active (isRepeat=true) = Purple, Inactive (false) = White (0.6 opacity) */}
+          <BouncyButton onPress={() => {
+            console.log('[PlayerScreen] Repeat button pressed');
+            toggleRepeat();
+          }}>
+            <Repeat
+              color={isRepeat ? "#7C3AED" : "#FFFFFF"}
+              size={24}
+              style={{ opacity: isRepeat ? 1 : 0.6 }}
+            />
           </BouncyButton>
         </View>
 

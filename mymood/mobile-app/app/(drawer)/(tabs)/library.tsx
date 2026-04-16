@@ -2,7 +2,7 @@ import "../../global.css";
 import React, { useState, useEffect } from "react";
 import {
     View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator,
-    Modal, TextInput, Alert, Switch, StyleSheet, Dimensions, RefreshControl
+    Modal, TextInput, Switch, StyleSheet, Dimensions, RefreshControl
 } from "react-native";
 import { Upload, Heart, Music, ListMusic } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -10,35 +10,27 @@ import MiniPlayer from "../../../components/MiniPlayer";
 import SongContextMenu, { SongMenuItem } from "../../../components/SongContextMenu";
 import { supabase } from "../../../lib/supabase";
 import { useAudio } from "../../../context/AudioContext";
+import { useUser } from "../../../context/UserContext";
+import { useToast } from "../../../context/ToastContext";
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 type Song = SongMenuItem;
 type Playlist = { id: string; name: string; cover_image_url?: string; track_count: number };
 
 export default function LibraryScreen() {
     const { playSong } = useAudio();
-
-    // ─── Data state ──────────────────────────────────────────────────────────────
+    const { likedSongs, likedSongIds, toggleLike } = useUser();
+    const { showToast } = useToast();
     const [loading, setLoading] = useState(true);
     const [recentSongs, setRecentSongs] = useState<Song[]>([]);
-    const [likedSongs, setLikedSongs] = useState<Song[]>([]);
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
-    const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
     const [refreshing, setRefreshing] = useState(false);
-
-    // ─── Create-playlist modal ────────────────────────────────────────────────────
     const [createModalVisible, setCreateModalVisible] = useState(false);
     const [newPlaylistName, setNewPlaylistName] = useState("");
     const [isPublic, setIsPublic] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
-
-    // ─── Long-press context menu ─────────────────────────────────────────────────
     const [selectedSong, setSelectedSong] = useState<Song | null>(null);
-
-    // ─── Data Fetching ────────────────────────────────────────────────────────────
     const loadLibraryData = async (isBackground = false) => {
         if (!isBackground) setLoading(true);
         try {
@@ -46,19 +38,12 @@ export default function LibraryScreen() {
             if (!session?.access_token) { setLoading(false); return; }
             const headers = { Authorization: `Bearer ${session.access_token}` };
 
-            const [historyRes, likesRes, playlistsRes] = await Promise.all([
+            const [historyRes, playlistsRes] = await Promise.all([
                 fetch(`${BACKEND_URL}/api/play/history`, { headers }),
-                fetch(`${BACKEND_URL}/api/likes/my-likes`, { headers }),
                 fetch(`${BACKEND_URL}/api/playlists`, { headers }),
             ]);
 
             if (historyRes.ok) setRecentSongs((await historyRes.json()).recent_songs || []);
-            if (likesRes.ok) {
-                const liked = (await likesRes.json()).liked_songs || [];
-                setLikedSongs(liked);
-                // Build a Set of liked song IDs for O(1) look-up
-                setLikedIds(new Set(liked.map((s: any) => s.id)));
-            }
             if (playlistsRes.ok) setPlaylists((await playlistsRes.json()).playlists || []);
         } catch (err) {
             console.error("Library fetch error:", err);
@@ -85,28 +70,14 @@ export default function LibraryScreen() {
             authListener.subscription.unsubscribe();
         };
     }, []);
-
-    // ─── Context Menu Handlers ────────────────────────────────────────────────────
-
     const openContextMenu = (song: Song) => setSelectedSong(song);
     const closeContextMenu = () => setSelectedSong(null);
-
-    /** Called by SongContextMenu after a successful like/unlike */
-    const handleLikeToggled = (songId: string, isNowLiked: boolean) => {
-        setLikedIds((prev) => {
-            const next = new Set(prev);
-            isNowLiked ? next.add(songId) : next.delete(songId);
-            return next;
-        });
-    };
-
-    // ─── Create Playlist ──────────────────────────────────────────────────────────
     const handleCreatePlaylist = async () => {
-        if (!newPlaylistName.trim()) { Alert.alert("แจ้งเตือน", "กรุณาใส่ชื่อก่อนครับ"); return; }
+        if (!newPlaylistName.trim()) { showToast("Please enter a playlist name", 'info'); return; }
         setIsCreating(true);
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) throw new Error("ไม่มี session");
+            if (!session?.access_token) throw new Error("No session");
             const res = await fetch(`${BACKEND_URL}/api/playlists`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
@@ -121,15 +92,12 @@ export default function LibraryScreen() {
             setCreateModalVisible(false);
             setNewPlaylistName("");
         } catch (err: any) {
-            Alert.alert("เกิดข้อผิดพลาด", err.message);
+            showToast(`Error: ${err.message}`, 'error');
         } finally {
             setIsCreating(false);
         }
     };
 
-
-
-    // ─── Loading ──────────────────────────────────────────────────────────────────
     if (loading) {
         return (
             <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F5F3FF" }}>
@@ -138,7 +106,6 @@ export default function LibraryScreen() {
         );
     }
 
-    // ─── Main Render ──────────────────────────────────────────────────────────────
     return (
         <View style={{ flex: 1, backgroundColor: "#F5F3FF" }}>
             <ScrollView showsVerticalScrollIndicator={false} refreshControl={
@@ -176,7 +143,7 @@ export default function LibraryScreen() {
                                             style={styles.songCover}
                                         />
                                         {/* Heart badge if liked */}
-                                        {likedIds.has(song.id) && (
+                                        {likedSongIds.has(song.id) && (
                                             <View style={styles.heartBadge}>
                                                 <Heart size={10} color="#fff" fill="#fff" />
                                             </View>
@@ -238,8 +205,6 @@ export default function LibraryScreen() {
                 visible={!!selectedSong}
                 song={selectedSong}
                 onClose={closeContextMenu}
-                likedIds={likedIds}
-                onLikeToggled={handleLikeToggled}
             />
 
 

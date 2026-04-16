@@ -1,16 +1,20 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { Text, View, ActivityIndicator, Image, ScrollView, TouchableOpacity, TextInput, RefreshControl, Alert } from "react-native";
+import { Text, View, ActivityIndicator, Image, ScrollView, TouchableOpacity, TextInput, RefreshControl } from "react-native";
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { supabase } from "../../../lib/supabase";
 import { Sparkles, Flame, Sparkle, Headphones, Play, Plus, X, FolderHeart, Users, Crown } from 'lucide-react-native';
 import { useAudio } from '../../../context/AudioContext';
+import { useUser } from "../../../context/UserContext";
+import { useToast } from '../../../context/ToastContext';
 import MiniPlayer from "../../../components/MiniPlayer";
 import SongContextMenu from "../../../components/SongContextMenu";
+import { Heart } from 'lucide-react-native';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function HomeScreen() {
-  const [profile, setProfile] = useState<any>(null);
+  const { profile, likedSongIds, isUserLoading: contextLoading } = useUser();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { playSong } = useAudio();
@@ -35,7 +39,6 @@ export default function HomeScreen() {
   // ── Context Menu States ──
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
   const [selectedContextSong, setSelectedContextSong] = useState<any>(null);
-
   const aiSheetRef = useRef<BottomSheet>(null);
 
   useEffect(() => {
@@ -48,7 +51,6 @@ export default function HomeScreen() {
     []
   );
 
-  // ── Initialization Hook ──
   useEffect(() => {
     let isMounted = true;
 
@@ -91,11 +93,6 @@ export default function HomeScreen() {
     const token = session?.access_token;
 
     if (myId) {
-      // 1. Profile
-      const { data: profileData } = await supabase.from("users").select("id, username, handle, profile_image_url").eq("id", myId).single();
-      setProfile(profileData);
-
-      // 2. Friends Activity
       const { data: friendships } = await supabase.from('friendships')
         .select('user_id, friend_id')
         .eq('status', 'accepted')
@@ -115,8 +112,6 @@ export default function HomeScreen() {
           setFriendsActivity([]);
         }
       }
-
-      // 3. New API Features
       if (token) {
         try {
           const [resMy, resFriends, resTop] = await Promise.all([
@@ -133,7 +128,6 @@ export default function HomeScreen() {
       }
     }
 
-    // 4. Global Original Data
     const { data: newData } = await supabase.from("songs").select("*").order("created_at", { ascending: false }).limit(10);
     if (newData) setNewSongs(newData);
 
@@ -141,7 +135,6 @@ export default function HomeScreen() {
     if (popData) setPopularSongs(popData);
   }
 
-  // ── API Actions ──
   const handleAiSearch = async () => {
     if (!moodPrompt.trim()) return;
     setIsAiLoading(true);
@@ -168,11 +161,11 @@ export default function HomeScreen() {
           songs: data.songs
         });
       } else {
-        Alert.alert("ไม่พบเพลง", data.message || "ไม่พบเพลงที่เหมาะสมกับอารมณ์นี้");
+        showToast(data.message || "No songs found for this mood", 'info');
         setAiModalVisible(false);
       }
     } catch (err: any) {
-      Alert.alert("ผิดพลาด", err.message);
+      showToast(`Error: ${err.message}`, 'error');
       setAiModalVisible(false);
     } finally {
       setIsAiLoading(false);
@@ -204,13 +197,13 @@ export default function HomeScreen() {
 
       const data = await res.json();
       if (res.ok) {
-        Alert.alert("สำเร็จ!", "บันทึกเพลย์ลิสต์ลงคลังของคุณเรียบร้อยแล้ว");
+        showToast("Playlist saved to library!", 'success');
         setAiModalVisible(false);
       } else {
-        throw new Error(data.error || "เกิดข้อผิดพลาดในการบันทึก");
+        throw new Error(data.error || "Failed to save");
       }
     } catch (err: any) {
-      Alert.alert("ผิดพลาด", err.message);
+      showToast(`Error: ${err.message}`, 'error');
     } finally {
       setIsSavingPlaylist(false);
     }
@@ -337,13 +330,20 @@ export default function HomeScreen() {
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
                 {myTopSongs.map((song) => (
-                  <TouchableOpacity 
-                    key={`top-${song.id}`} 
-                    className="mr-5" 
+                  <TouchableOpacity
+                    key={`top-${song.id}`}
+                    className="mr-5 relative"
                     onPress={() => handlePlayAndNavigate(song, myTopSongs)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-40 h-40 rounded-3xl bg-gray-200 shadow-md" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-40 h-40 rounded-3xl bg-gray-200 shadow-md" />
+                      {likedSongIds.has(song.id) && (
+                        <View className="absolute top-2 right-2 bg-red-500 rounded-full p-1 shadow-sm">
+                          <Heart size={12} color="white" fill="white" />
+                        </View>
+                      )}
+                    </View>
                     <Text className="font-bold text-gray-800 mt-3 text-lg w-40" numberOfLines={1}>{song.title}</Text>
                     <Text className="text-purple-600 font-semibold text-sm w-40" numberOfLines={1}>{song.artist}</Text>
                   </TouchableOpacity>
@@ -361,13 +361,20 @@ export default function HomeScreen() {
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
                 {newSongs.map((song) => (
-                  <TouchableOpacity 
-                    key={`new-${song.id}`} 
-                    className="mr-5" 
+                  <TouchableOpacity
+                    key={`new-${song.id}`}
+                    className="mr-5"
                     onPress={() => handlePlayAndNavigate(song, newSongs)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-36 h-36 rounded-2xl bg-gray-200 shadow-sm" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-36 h-36 rounded-2xl bg-gray-200 shadow-sm" />
+                      {likedSongIds.has(song.id) && (
+                        <View className="absolute top-2 right-2 bg-red-500 rounded-full p-1 shadow-sm">
+                          <Heart size={10} color="white" fill="white" />
+                        </View>
+                      )}
+                    </View>
                     <Text className="font-bold text-gray-800 mt-3 text-base w-36" numberOfLines={1}>{song.title}</Text>
                     <Text className="text-gray-500 text-sm w-36" numberOfLines={1}>{song.artist}</Text>
                   </TouchableOpacity>
@@ -385,13 +392,20 @@ export default function HomeScreen() {
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
                 {popularSongs.map((song) => (
-                  <TouchableOpacity 
-                    key={`pop-${song.id}`} 
-                    className="mr-5" 
+                  <TouchableOpacity
+                    key={`pop-${song.id}`}
+                    className="mr-5"
                     onPress={() => handlePlayAndNavigate(song, popularSongs)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-full bg-gray-200 shadow-sm" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-full bg-gray-200 shadow-sm" />
+                      {likedSongIds.has(song.id) && (
+                        <View className="absolute top-1 right-1 bg-red-500 rounded-full p-1 shadow-sm">
+                          <Heart size={10} color="white" fill="white" />
+                        </View>
+                      )}
+                    </View>
                     <Text className="font-bold text-gray-800 mt-3 text-base w-32 text-center" numberOfLines={1}>{song.title}</Text>
                     <Text className="text-gray-500 text-sm text-center w-32" numberOfLines={1}>{song.play_count || 0} views</Text>
                   </TouchableOpacity>
@@ -409,13 +423,20 @@ export default function HomeScreen() {
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
                 {friendsUploads.map((song) => (
-                  <TouchableOpacity 
-                    key={`friend-up-${song.id}`} 
-                    className="mr-5" 
+                  <TouchableOpacity
+                    key={`friend-up-${song.id}`}
+                    className="mr-5"
                     onPress={() => handlePlayAndNavigate(song, friendsUploads)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-xl bg-gray-200 shadow-sm" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-xl bg-gray-200 shadow-sm" />
+                      {likedSongIds.has(song.id) && (
+                        <View className="absolute top-1 right-1 bg-red-500 rounded-full p-1 shadow-sm">
+                          <Heart size={10} color="white" fill="white" />
+                        </View>
+                      )}
+                    </View>
                     <Text className="font-bold text-gray-800 mt-3 text-sm w-32" numberOfLines={1}>{song.title}</Text>
                     <Text className="text-gray-500 text-xs w-32" numberOfLines={1}>{song.artist}</Text>
                   </TouchableOpacity>
@@ -433,13 +454,20 @@ export default function HomeScreen() {
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
                 {myUploads.map((song) => (
-                  <TouchableOpacity 
-                    key={`my-up-${song.id}`} 
-                    className="mr-5" 
+                  <TouchableOpacity
+                    key={`my-up-${song.id}`}
+                    className="mr-5"
                     onPress={() => handlePlayAndNavigate(song, myUploads)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
-                    <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-xl bg-gray-200 shadow-sm" />
+                    <View className="relative">
+                      <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-xl bg-gray-200 shadow-sm" />
+                      {likedSongIds.has(song.id) && (
+                        <View className="absolute top-1 right-1 bg-red-500 rounded-full p-1 shadow-sm">
+                          <Heart size={10} color="white" fill="white" />
+                        </View>
+                      )}
+                    </View>
                     <Text className="font-bold text-gray-800 mt-3 text-sm w-32" numberOfLines={1}>{song.title}</Text>
                     <Text className="text-gray-500 text-xs w-32" numberOfLines={1}>{song.artist}</Text>
                   </TouchableOpacity>
@@ -457,7 +485,7 @@ export default function HomeScreen() {
       <BottomSheet
         ref={aiSheetRef}
         index={-1}
-        snapPoints={['50%', '85%']}
+        enableDynamicSizing={true}
         enablePanDownToClose={true}
         onClose={() => setAiModalVisible(false)}
         backdropComponent={renderBackdrop}
@@ -465,7 +493,7 @@ export default function HomeScreen() {
       >
         <BottomSheetScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 10, paddingBottom: 40 }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 10, paddingBottom: 120 }}
           showsVerticalScrollIndicator={false}
         >
           <View style={{ flex: 1 }}>
@@ -546,14 +574,15 @@ export default function HomeScreen() {
         </BottomSheetScrollView>
       </BottomSheet>
 
+      {/* Mini Player */}
+      <MiniPlayer />
       <SongContextMenu
         visible={contextMenuVisible}
         song={selectedContextSong}
         onClose={() => setContextMenuVisible(false)}
+
       />
 
-      {/* Mini Player */}
-      <MiniPlayer />
     </View>
   );
 }
