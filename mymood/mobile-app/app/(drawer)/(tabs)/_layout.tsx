@@ -93,7 +93,7 @@ export default function TabLayout() {
             <Tabs.Screen name="upload" options={{ title: "" }} />
             <Tabs.Screen name="friends" options={{ title: "" }} />
             <Tabs.Screen name="Inbox" options={{ title: "" }} />
-            <Tabs.Screen name="setting" options={{ title: "" }} />
+            <Tabs.Screen name="setting" options={{ title: "" }} />            
         </Tabs>
     );
 }

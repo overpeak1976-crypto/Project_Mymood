@@ -9,7 +9,6 @@ import UpNextSheet from '../components/UpNextSheet';
 import { useAudio } from '../context/AudioContext';
 import { useToast } from '../context/ToastContext';
 import Slider from '@react-native-community/slider';
-
 const { width, height } = Dimensions.get('window');
 const ModernSpinner = ({ size = 24, color = "#7C3AED" }) => {
   const spinValue = new Animated.Value(0);
