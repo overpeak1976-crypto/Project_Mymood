@@ -1,11 +1,4 @@
-import {
-    View,
-    Text,
-    TouchableOpacity,
-    FlatList,
-    TextInput,
-    Image,
-} from "react-native";
+import { View, Text, TouchableOpacity, FlatList, TextInput, Image, } from "react-native";
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabase";
 import { useRouter } from "expo-router";
@@ -40,12 +33,12 @@ return (
     <SafeAreaView className="flex-1 bg-white">
         <View className="p-5">
 
-            {/* 🔙 BACK */}
+            {/* BACK */}
             <TouchableOpacity onPress={() => router.back()} className="mb-4">
                 <Text className="text-purple-600 font-bold">← Back</Text>
             </TouchableOpacity>
 
-            {/* 🔍 SEARCH */}
+            {/* SEARCH */}
             <TextInput
                 placeholder="ค้นหาเพลง..."
                 value={search}
@@ -53,7 +46,7 @@ return (
                 className="border rounded-xl px-4 py-3 mb-4"
             />
 
-            {/* 🎵 LIST */}
+            {/* LIST */}
             <FlatList
                 data={filteredSongs}
                 keyExtractor={(item) => item.id}

@@ -60,13 +60,32 @@ const handleLogout = async () => {
         );
     };
     return (
-        <View className="flex-1 bg-[#F5F3FF]">
+    <View className="flex-1 bg-white">
 
-            <View className="mt-9 px-4 gap-7">
+        <View className="mt-14 px-5">
 
-                <Text className="text-3xl font-extrabold text-center text-purple-700 mb-10">
-                    Settings
-                </Text>
+{/* HEADER */}
+<View className="mb-8">
+    <View className="flex-row items-center justify-between w-full">
+        
+        {/* TEXT */}
+        <Text className="text-3xl font-extrabold text-purple-700">
+            Settings
+        </Text>
+
+        {/* ICON */}
+        <View className="w-9 h-9 rounded-full bg-purple-100 items-center justify-center">
+            <Ionicons name="settings-outline" size={20} color="#7C3AED" />
+        </View>
+
+    </View>
+
+    {/* 🔥 เส้นยาวเต็ม */}
+    <View className="mt-4 h-[2px] w-full bg-purple-500 rounded-full" />
+</View>
+
+            {/* LIST */}
+            <View className="bg-white rounded-2xl overflow-hidden">
 
                 {menu.map((item, index) => (
                     <TouchableOpacity
@@ -79,21 +98,33 @@ const handleLogout = async () => {
                                 router.push(item.path as any);
                             }
                         }}
-                        className="bg-purple-100 p-5 rounded-xl flex-row justify-between items-center"
+                        className="flex-row items-center justify-between py-4 px-3 active:bg-gray-100"
                     >
-                        <Text className="text-[17px] font-semibold text-black">
-                            {item.title}
-                        </Text>
+                        
+                        <View className="flex-row items-center gap-3">
+                            <Text className="text-[16px] text-black font-medium py-5">
+                                {item.title}
+                            </Text>
+                        </View>
 
-                        <Ionicons
-                            name={item.icon as any}
-                            size={20}
-                            color="#333"
-                        />
+                        <View className="w-9 h-9 rounded-full bg-gray-100 items-center justify-center">
+                            <Ionicons
+                                name={item.icon as any}
+                                size={18}
+                                color="#111"
+                            />
+                        </View>
+
+                        {index !== menu.length - 1 && (
+                            <View className="absolute bottom-0 left-4 right-4 h-[0.5px] bg-gray-200" />
+                        )}
                     </TouchableOpacity>
                 ))}
+
             </View>
 
         </View>
-    );
+
+    </View>
+);
 }
