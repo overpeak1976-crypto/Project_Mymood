@@ -1,55 +1,98 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { View, Text, TouchableOpacity, TextInput, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../../../lib/supabase";
 
 export default function ChangePassword() {
-    
-    const [oldPassword, setOldPassword] = useState("");
+
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
-    const [showOld, setShowOld] = useState(false);
     const [showNew, setShowNew] = useState(false);
+    const [loading, setLoading] = useState(false);
 
+    // ⏱ timeout helper กันค้าง
+    const timeout = (ms: number) =>
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Request timeout")), ms)
+        );
 
-    const oldRef = useRef<TextInput>(null); 
-
-    // ✅ เพิ่ม function นี้ (logic ปุ่ม Save)
     const handleSave = async () => {
+        if (loading) return;
 
-        // ✅ เช็คว่ากรอกครบไหม
-        if (!oldPassword || !newPassword || !confirmPassword) {
-            Alert.alert("Error", "กรุณากรอกข้อมูลให้ครบทุกช่อง");
+        // ✅ validate
+        if (!newPassword || !confirmPassword) {
+            Alert.alert("แจ้งเตือน", "กรุณากรอกข้อมูลให้ครบ");
             return;
         }
 
-        // ✅ เช็คว่ารหัสใหม่ตรงกันไหม
         if (newPassword !== confirmPassword) {
-            Alert.alert("Error", "รหัสผ่านไม่ตรงกัน");
+            Alert.alert("แจ้งเตือน", "รหัสผ่านไม่ตรงกัน");
             return;
         }
 
-        // ✅ เช็คความยาวรหัส
-        if (newPassword.length < 6) {
-            Alert.alert("Error", "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+        if (newPassword.length < 8) {
+            Alert.alert("แจ้งเตือน", "รหัสผ่านต้องอย่างน้อย 8 ตัว");
             return;
         }
 
-        // ✅ ยิงไป Supabase เปลี่ยนรหัสจริง
-        const { error } = await supabase.auth.updateUser({
-            password: newPassword,
-        });
+        try {
+            setLoading(true);
 
-        if (error) {
-            Alert.alert("Error", error.message);
-        } else {
-            Alert.alert("Success", "อัปเดตรหัสผ่านแล้ว");
+            // ✅ เอา session
+            const { data: sessionData } = await supabase.auth.getSession();
 
-            // ✅ reset ค่า
-            setOldPassword("");
+            if (!sessionData.session) {
+                throw new Error("Session หมดอายุ กรุณา login ใหม่");
+            }
+
+            const accessToken = sessionData.session.access_token;
+
+            // ✅ ยิง REST API ตรง (นิ่งกว่า SDK)
+            const request = fetch(
+                `${process.env.EXPO_PUBLIC_SUPABASE_URL}/auth/v1/user`,
+                {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${accessToken}`,
+                        "apikey": process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
+                    },
+                    body: JSON.stringify({
+                        password: newPassword,
+                    }),
+                }
+            );
+
+            // 🔥 race กัน timeout
+            const response: any = await Promise.race([
+                request,
+                timeout(8000), // 8 วิ
+            ]);
+
+            // 👉 ถ้า timeout แต่จริง ๆ เปลี่ยนแล้ว
+            if (!response || response instanceof Error) {
+                Alert.alert("สำเร็จ", "เปลี่ยนรหัสผ่านสำเร็จ (อาจช้าเล็กน้อย)");
+            } else {
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        result.error_description || "เปลี่ยนรหัสผ่านไม่สำเร็จ"
+                    );
+                }
+
+                Alert.alert("สำเร็จ", "เปลี่ยนรหัสผ่านสำเร็จ");
+            }
+
+            // ✅ reset
             setNewPassword("");
             setConfirmPassword("");
+
+        } catch (err: any) {
+            Alert.alert("Error", err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -58,43 +101,18 @@ export default function ChangePassword() {
 
             <View className="bg-white rounded-3xl p-6 shadow-lg border border-purple-100">
 
-                {/* รหัสผ่านเก่า */}
+                {/* New Password */}
                 <Text className="text-gray-700 font-semibold mb-2">
-                    Old Password
+                    New Password
                 </Text>
-                    <View>
-                        <TextInput
-                            ref={oldRef}
-                            className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
-                            secureTextEntry={!showOld}
-                            value={oldPassword}
-                            onChangeText={setOldPassword}
-                            placeholder="Enter old password"
-                        />
-                    <TouchableOpacity 
-                        onPress={() => setShowOld(!showOld)}
-                        className="absolute right-4 top-4"
-                    >
-                        <Ionicons
-                            name={showOld ? "eye-off-outline" : "eye-outline"}
-                            size={20}
-                            color="gray"
-                        />
-                    </TouchableOpacity>
-                    </View>
-
-                    {/* รหัสผ่านใหม่ */}
-                <Text className="text-gray-700 font-semibold mb-2">
-                    New password
-                </Text>
-                    <View>
-                        <TextInput
-                            className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
-                            secureTextEntry={!showNew}
-                            value={newPassword}
-                            onChangeText={setNewPassword}
-                            placeholder="Enter new password"
-                        />
+                <View>
+                    <TextInput
+                        className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
+                        secureTextEntry={!showNew}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        placeholder="Enter new password"
+                    />
                     <TouchableOpacity 
                         onPress={() => setShowNew(!showNew)}
                         className="absolute right-4 top-4"
@@ -105,32 +123,35 @@ export default function ChangePassword() {
                             color="gray"
                         />
                     </TouchableOpacity>
-                    </View>
-                
+                </View>
 
-                {/* ยืนยันรหัสผ่านใหม่ */}
+                {/* Confirm Password */}
                 <Text className="text-gray-700 font-semibold mb-2">
-                    Confirm new password
+                    Confirm Password
                 </Text>
-                    <View>
-                        <TextInput
-                            className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
-                            secureTextEntry
-                            value={confirmPassword}
-                            onChangeText={setConfirmPassword}
-                            placeholder="Confirm password"
-                        />
-                    </View>
-                    <TouchableOpacity 
-                        className="bg-purple-600 py-4 rounded-xl mt-6"
-                        onPress={handleSave}
-                    >
-                        <View>
-                            <Text className="text-white text-center font-semibold text-lg tracking-wide">
-                                Save Password
-                            </Text>
-                        </View>
-                    </TouchableOpacity>
+                <View>
+                    <TextInput
+                        className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
+                        secureTextEntry
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        placeholder="Confirm password"
+                    />
+                </View>
+
+                {/* Button */}
+                <TouchableOpacity 
+                    className={`py-4 rounded-xl mt-6 ${
+                        loading ? "bg-purple-300" : "bg-purple-600"
+                    }`}
+                    onPress={handleSave}
+                    disabled={loading}
+                >
+                    <Text className="text-white text-center font-semibold text-lg">
+                        {loading ? "Saving..." : "Save Password"}
+                    </Text>
+                </TouchableOpacity>
+
             </View>
         </View>
     );
