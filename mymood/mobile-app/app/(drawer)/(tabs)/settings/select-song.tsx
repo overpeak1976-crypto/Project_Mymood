@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, FlatList, TextInput, Image, } from "react-native";
 import { useEffect, useState } from "react";
-import { supabase } from "../../../lib/supabase";
+import { supabase } from "../../../../lib/supabase";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 

@@ -1,17 +1,12 @@
 import { Response } from 'express';
-import { supabase } from '../config/supabase';
 import { AuthRequest } from '../middlewares/authMiddleware';
+import { userService } from '../services/userService';
 
 export const userController = {
   async searchByHandle(req: AuthRequest, res: Response) {
     try {
-      const { handle } = req.params;
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, username, handle, profile_image_url')
-        .ilike('handle', `%${handle}%`)
-        .limit(10); 
-      if (error) throw error;
+      const handle = req.params.handle as string;
+      const data = await userService.searchByHandle(handle);
       res.status(200).json(data);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -22,81 +17,92 @@ export const userController = {
     try {
       const myId = req.user.id;
       const { targetUserId } = req.body;
-
-      if (myId === targetUserId) {
-        return res.status(400).json({ error: "แอดตัวเองเป็นเพื่อนไม่ได้นะครับ" });
-      }
-      const { data, error } = await supabase
-        .from('friendships')
-        .insert([{ user_id: myId, friend_id: targetUserId, status: 'pending' }])
-        .select()
-        .single();
-
-      if (error) {
-        if (error.code === '23505') return res.status(400).json({ error: "ส่งคำขอไปแล้ว หรือเป็นเพื่อนกันอยู่แล้ว" });
-        throw error;
-      }
-
-      res.status(201).json({ message: "ส่งคำขอแอดเพื่อนเรียบร้อย!", friendship: data });
+      const friendship = await userService.addFriend(myId, targetUserId);
+      res.status(201).json({ message: 'ส่งคำขอแอดเพื่อนเรียบร้อย!', friendship });
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      const status =
+        error.message.includes('แอดตัวเอง') || error.message.includes('ส่งคำขอไปแล้ว')
+          ? 400
+          : 500;
+      res.status(status).json({ error: error.message });
     }
   },
 
   async acceptFriend(req: AuthRequest, res: Response) {
     try {
-      const myId = req.user.id; 
-      const { senderId } = req.body; 
-      const { data, error } = await supabase
-        .from('friendships')
-        .update({ status: 'accepted' })
-        .match({ user_id: senderId, friend_id: myId }) 
-        .select()
-        .single();
-
-      if (error) throw error;
-      
-      await supabase
-        .from('friendships')
-        .delete()
-        .match({ user_id: myId, friend_id: senderId, status: 'pending' });
-
-      res.status(200).json({ message: "เป็นเพื่อนกันเรียบร้อย!", friendship: data });
+      const myId = req.user.id;
+      const { senderId } = req.body;
+      const friendship = await userService.acceptFriend(myId, senderId);
+      res.status(200).json({ message: 'เป็นเพื่อนกันเรียบร้อย!', friendship });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   },
-  // เพิ่มฟังก์ชันนี้ใน userController
-async getMyTopGenres(req: AuthRequest, res: Response) {
-  try {
-    const myId = req.user.id;
 
-    // Query นี้จะไปนับ Genre ที่ซ้ำกันมากที่สุด 5 อันดับแรก
-    const { data, error } = await supabase
-      .from('play_history')
-      .select(`
-        song:songs(genre)
-      `)
-      .eq('user_id', myId);
+  async getMyTopGenres(req: AuthRequest, res: Response) {
+    try {
+      const myId = req.user.id;
+      const topGenres = await userService.getMyTopGenres(myId);
+      res.status(200).json({ topGenres });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
 
-    if (error) throw error;
+  async getMyProfile(req: AuthRequest, res: Response) {
+    console.log('[userController] getMyProfile called, user:', req.user?.id);
+    try {
+      const myId = req.user.id;
+      const profile = await userService.profileData(myId);
+      console.log('[userController] profile result:', profile ? 'found' : 'null');
+      res.status(200).json(profile);
+    } catch (error: any) {
+      console.error('[userController] getMyProfile error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
 
-    // นำข้อมูลมานับจำนวน (Count) แต่ละแนวเพลง
-    const genreCounts: { [key: string]: number } = {};
-    data.forEach((item: any) => {
-      const g = item.song?.genre || 'Unknown';
-      genreCounts[g] = (genreCounts[g] || 0) + 1;
-    });
+  async updateMyProfile(req: AuthRequest, res: Response) {
+    try {
+      const myId = req.user.id;
+      const { username, handle, bio, link, profile_image_url, banner_image_url, current_playing_song_id } = req.body;
+      const profile = await userService.uploadsData(myId, { username, handle, bio, link, profile_image_url, banner_image_url, current_playing_song_id });
+      res.status(200).json(profile);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
 
-    // เรียงลำดับจากมากไปน้อย
-    const sortedGenres = Object.entries(genreCounts)
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5); // เอาแค่ Top 5
+  async getPrivacySettings(req: AuthRequest, res: Response) {
+    try {
+      const myId = req.user.id;
+      const settings = await userService.getPrivacySettings(myId);
+      res.status(200).json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
 
-    res.status(200).json({ topGenres: sortedGenres });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-}
+  async updatePrivacySettings(req: AuthRequest, res: Response) {
+    try {
+      const myId = req.user.id;
+      const { show_activity_status, show_uploads } = req.body;
+      const settings = await userService.updatePrivacySettings(myId, { show_activity_status, show_uploads });
+      res.status(200).json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async getPublicProfile(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.params.userId as string;
+      const myId = req.user?.id;
+      const profile = await userService.getPublicProfile(userId, myId);
+      if (!profile) return res.status(404).json({ error: 'User not found' });
+      res.status(200).json(profile);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
 };

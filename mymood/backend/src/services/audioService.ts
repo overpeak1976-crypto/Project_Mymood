@@ -71,7 +71,7 @@ export const audioService = {
       const danceResult = parseFloat(dance.danceability.toFixed(2));
       const energyResult = parseFloat(energyData.energy.toFixed(2));
 
-      console.log(`✅ สำเร็จ! BPM: ${bpmResult}, Key: ${keyData.key} ${keyData.scale}, Energy: ${energyResult}`);
+      console.log(` สำเร็จ! BPM: ${bpmResult}, Key: ${keyData.key} ${keyData.scale}, Energy: ${energyResult}`);
 
       // ลบไฟล์ WAV ชั่วคราวทิ้ง
       if (fs.existsSync(tempWavPath)) fs.unlinkSync(tempWavPath);
@@ -85,7 +85,7 @@ export const audioService = {
       };
 
     } catch (error) {
-      console.error("❌ ล้มเหลวในการวิเคราะห์คลื่นเสียง:", error);
+      console.error(" ล้มเหลวในการวิเคราะห์คลื่นเสียง:", error);
       if (fs.existsSync(tempWavPath)) fs.unlinkSync(tempWavPath);
       return { bpm: 0, danceability: 0, key: 'Unknown', scale: 'Unknown', energy: 0 };
     }

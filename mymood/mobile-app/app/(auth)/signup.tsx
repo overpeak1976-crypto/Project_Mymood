@@ -1,40 +1,42 @@
 import "../global.css";
 import React, { useState } from "react";
-import { Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useToast } from "../../context/ToastContext";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
 
 export default function SignUpScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const validateInput = () => {
     if (!email || !password || !confirmPassword) {
-      Alert.alert("แจ้งเตือน", "กรุณากรอกข้อมูลให้ครบทุกช่องครับ");
+      showToast("Fill all fields to continue", 'info');
       return false;
     }
 
     const emailRegex = /\S+@\S+\.\S+/;
     if (!emailRegex.test(email)) {
-      Alert.alert("แจ้งเตือน", "รูปแบบอีเมลไม่ถูกต้องครับ");
+      showToast("Invalid email format", 'error');
       return false;
     }
 
     if (password.length < 8) {
-      Alert.alert("รหัสผ่านอ่อนเกินไป", "รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษรครับ");
+      showToast("Password must be at least 8 characters", 'error');
       return false;
     }
 
     const strongPasswordRegex = /^(?=.*[a-zA-Z])(?=.*[0-9])/;
     if (!strongPasswordRegex.test(password)) {
-      Alert.alert("รหัสผ่านคาดเดาง่าย", "รหัสผ่านต้องมี 'ตัวอักษร' และ 'ตัวเลข' ผสมกันครับ");
+      showToast("Password needs letters and numbers", 'error');
       return false;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("รหัสผ่านไม่ตรงกัน", "กรุณายืนยันรหัสผ่านให้ตรงกันครับ");
+      showToast("Passwords don't match", 'error');
       return false;
     }
 
@@ -53,16 +55,16 @@ export default function SignUpScreen() {
 
       if (error) {
         if (error.message.includes("User already registered")) {
-          Alert.alert("สมัครไม่สำเร็จ", "อีเมลนี้มีในระบบแล้ว กรุณาใช้อีเมลอื่นครับ");
+          showToast("This email already exists", 'error');
         } else {
-          Alert.alert("สมัครไม่สำเร็จ", error.message);
+          showToast(`${error.message}`, 'error');
         }
       } else if (data.user) {
-        Alert.alert("เกือบเสร็จแล้ว!", "สร้างบัญชีสำเร็จ ไปตั้งชื่อโปรไฟล์กันต่อเลย 🎉");
+        showToast("Account created! Setting up profile...", 'success');
         router.replace("/complete-profile"); 
       }
     } catch (err: any) {
-      Alert.alert("Error", err.message);
+      showToast(`Error: ${err.message}`, 'error');
     } finally {
       setLoading(false);
     }

@@ -4,7 +4,7 @@
     "slug": "mymood",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/Mymood_logo.png",
     "scheme": "mymood",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -44,7 +44,8 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

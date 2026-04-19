@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from "react";
-import { Text, View, TextInput, TouchableOpacity, Alert, ActivityIndicator, Image } from "react-native";
+import { Text, View, TextInput, TouchableOpacity, ActivityIndicator, Image, ScrollView } from "react-native";
+import { useToast } from "../../context/ToastContext";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
-import * as ImagePicker from 'expo-image-picker'; 
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system/legacy';
-import { decode } from 'base64-arraybuffer'; 
+
 
 export default function CompleteProfileScreen() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [username, setUsername] = useState("");
   const [handle, setHandle] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sessionUser, setSessionUser] = useState<any>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -18,7 +23,7 @@ export default function CompleteProfileScreen() {
 
   useEffect(() => {
     const randomDigits = Math.floor(1000 + Math.random() * 9000);
-    
+
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) {
         const user = data.user;
@@ -63,9 +68,38 @@ export default function CompleteProfileScreen() {
 
   const handleCompleteProfile = async () => {
     if (!username || !handle) {
-      Alert.alert("แจ้งเตือน", "กรุณากรอกชื่อและไอดีให้ครบถ้วนครับ");
+      showToast("กรุณากรอกชื่อและไอดี", 'info');
       return;
-    } 
+    }
+
+    // บังคับสร้างรหัสผ่านสำหรับ Google Login
+    if (isGoogleLogin) {
+      if (!password || !confirmPassword) {
+        showToast("กรุณาสร้างรหัสผ่านสำหรับบัญชีของคุณ", 'info');
+        return;
+      }
+      if (password.length < 8) {
+        showToast("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร", 'error');
+        return;
+      }
+      if (!/[A-Z]/.test(password)) {
+        showToast("ต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว", 'error');
+        return;
+      }
+      if (!/[a-z]/.test(password)) {
+        showToast("ต้องมีตัวพิมพ์เล็กอย่างน้อย 1 ตัว", 'error');
+        return;
+      }
+      if (!/[0-9]/.test(password)) {
+        showToast("ต้องมีตัวเลขอย่างน้อย 1 ตัว", 'error');
+        return;
+      }
+      if (password !== confirmPassword) {
+        showToast("รหัสผ่านไม่ตรงกัน", 'error');
+        return;
+      }
+    }
+
     if (!sessionUser) return;
 
     setLoading(true);
@@ -80,48 +114,50 @@ export default function CompleteProfileScreen() {
         .maybeSingle();
 
       if (existingHandle) {
-        Alert.alert("อ๊ะ!", "Handle นี้มีคนใช้ไปแล้วครับ");
+        showToast("This handle is already taken", 'error');
         setLoading(false);
         return;
       }
 
       let finalImageUrl = profileImage;
 
-      // 2. 🌟 จัดการอัปโหลดรูป (รองรับทั้งไฟล์ในเครื่อง และลิงก์จาก Google)
       if (profileImage && !profileImage.includes('supabase.co')) {
         try {
-          let base64 = "";
-          let ext = "jpg";
+          let uploadUri = profileImage;
 
+          // ถ้าเป็น Google URL ใช้ URL ตรงๆ ไม่ต้องดาวน์โหลดมาก่อน
+          // เพราะ FormData ใน RN รับ local uri เท่านั้น
+          // ถ้าเป็น http ให้ข้ามการ upload แล้วใช้ URL นั้นเลย
           if (profileImage.startsWith('http')) {
-            // กรณีเป็นลิงก์เว็บ (Google Avatar) -> โหลดมาเป็นไฟล์ชั่วคราวก่อน
-            const tempFile = `${FileSystem.cacheDirectory}temp_avatar_${Date.now()}.jpg`;
-            const { uri } = await FileSystem.downloadAsync(profileImage, tempFile);
-            base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+            finalImageUrl = profileImage; // ✅ ใช้ Google URL ตรงๆ
           } else {
-            // กรณีเลือกไฟล์จากแกลเลอรี่ในเครื่อง
-            ext = profileImage.split('.').pop()?.toLowerCase() || 'jpg';
-            base64 = await FileSystem.readAsStringAsync(profileImage, { encoding: 'base64' });
+            // เป็นไฟล์ในเครื่อง → upload ด้วย FormData
+            const fileName = `${sessionUser.id}-${Date.now()}.jpg`;
+
+            const formData = new FormData();
+            formData.append("file", {
+              uri: uploadUri,
+              type: "image/jpeg",
+              name: fileName,
+            } as any);
+
+            const { error: uploadError } = await supabase.storage
+              .from("picture")
+              .upload(fileName, formData, {
+                contentType: "multipart/form-data",
+                upsert: true,
+              });
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+              .from("picture")
+              .getPublicUrl(fileName);
+
+            finalImageUrl = publicUrl;
           }
-
-          const fileName = `${sessionUser.id}/profile_${Date.now()}.${ext}`;
-          
-          // อัปโหลดเข้า Storage Bucket "picture"
-          const { error: uploadError } = await supabase.storage
-            .from("picture")
-            .upload(fileName, decode(base64), {
-              contentType: `image/${ext}`,
-              upsert: true,
-            });
-
-          if (uploadError) throw uploadError;
-
-          // ดึง Public URL มาใช้
-          const { data: { publicUrl } } = supabase.storage.from("picture").getPublicUrl(fileName);
-          finalImageUrl = publicUrl;
         } catch (imgError) {
           console.error("Image Upload Error:", imgError);
-          // ถ้าโหลดรูปพังก็ปล่อยผ่านไปใช้ UI Avatar แทน
           finalImageUrl = null;
         }
       }
@@ -137,37 +173,44 @@ export default function CompleteProfileScreen() {
         email: sessionUser.email,
         username: username,
         handle: handle,
-        password_hash: isGoogleLogin ? "google_oauth_managed" : "supabase_managed",
+        password_hash: (isGoogleLogin && password) ? "supabase_managed" : (isGoogleLogin ? "google_oauth_managed" : "supabase_managed"),
         profile_image_url: finalImageUrl,
         is_online: true,
         last_active: new Date(),
         updated_at: new Date()
-      }, { onConflict: 'id' }); 
+      }, { onConflict: 'id' });
 
       if (dbError) throw dbError;
 
       // 4. อัปเดต Auth Metadata 
-      await supabase.auth.updateUser({
+      const updateData: any = {
         data: {
           picture: finalImageUrl,
           full_name: username
         }
-      });
+      };
 
-      Alert.alert("สำเร็จ!", "สร้างโปรไฟล์เรียบร้อยแล้ว 🎉");
+      // ถ้าเป็น Google Login → ตั้งรหัสผ่านด้วย
+      if (isGoogleLogin && password) {
+        updateData.password = password;
+      }
+
+      await supabase.auth.updateUser(updateData);
+
+      showToast("Profile created successfully!", 'success');
       router.replace("/(drawer)/(tabs)");
     } catch (error: any) {
       console.error(error);
-      Alert.alert("เกิดข้อผิดพลาด", error.message);
+      showToast(`Error: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View className="flex-1 bg-[#F5F3FF] px-6 pt-24">
+    <ScrollView className="flex-1 bg-[#F5F3FF]" contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 96, paddingBottom: 40 }}>
       <Text className="text-3xl font-extrabold text-purple-800 mb-2">ยินดีต้อนรับ!</Text>
-      
+
       <View className="items-center mb-8 mt-6">
         <TouchableOpacity
           onPress={pickImage}
@@ -194,12 +237,58 @@ export default function CompleteProfileScreen() {
 
       <Text className="text-gray-700 font-bold mb-2 ml-1">ไอดีผู้ใช้ (@Handle)</Text>
       <TextInput
-        className="bg-white p-4 rounded-2xl border border-purple-100 mb-8 shadow-sm text-gray-800 font-medium"
+        className="bg-white p-4 rounded-2xl border border-purple-100 mb-4 shadow-sm text-gray-800 font-medium"
         placeholder="ไอดี"
         value={handle}
         onChangeText={(text) => setHandle(text.toLowerCase().replace(/[^a-z0-9_.]/g, ""))}
         autoCapitalize="none"
       />
+
+      {isGoogleLogin && (
+        <View className="bg-purple-50 p-4 rounded-2xl border border-purple-200 mb-4">
+          <View className="flex-row items-center mb-3">
+            <Ionicons name="lock-closed" size={18} color="#7C3AED" />
+            <Text className="text-purple-700 font-bold ml-2">สร้างรหัสผ่าน</Text>
+          </View>
+          <Text className="text-gray-500 text-xs mb-3">คุณเข้าสู่ระบบด้วย Google — กรุณาตั้งรหัสผ่านเพื่อเข้าใช้แอป{'\n'}(ตัวพิมพ์ใหญ่ + ตัวพิมพ์เล็ก + ตัวเลข อย่างน้อย 8 ตัว)</Text>
+
+          <Text className="text-gray-700 font-semibold mb-1 ml-1">รหัสผ่าน</Text>
+          <View className="mb-3">
+            <TextInput
+              className="bg-white p-4 rounded-2xl border border-purple-100 shadow-sm"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="อย่างน้อย 8 ตัวอักษร"
+              autoComplete="new-password"
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={{ position: 'absolute', right: 16, top: 16 }}
+            >
+              <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="gray" />
+            </TouchableOpacity>
+          </View>
+
+          <Text className="text-gray-700 font-semibold mb-1 ml-1">ยืนยันรหัสผ่าน</Text>
+          <View>
+            <TextInput
+              className="bg-white p-4 rounded-2xl border border-purple-100 shadow-sm"
+              secureTextEntry={!showConfirm}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="กรอกรหัสผ่านอีกครั้ง"
+              autoComplete="new-password"
+            />
+            <TouchableOpacity
+              onPress={() => setShowConfirm(!showConfirm)}
+              style={{ position: 'absolute', right: 16, top: 16 }}
+            >
+              <Ionicons name={showConfirm ? "eye-off-outline" : "eye-outline"} size={20} color="gray" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       <TouchableOpacity
         onPress={handleCompleteProfile}
@@ -208,6 +297,6 @@ export default function CompleteProfileScreen() {
       >
         {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-lg font-bold">เริ่มต้นใช้งาน</Text>}
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
