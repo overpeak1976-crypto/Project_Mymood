@@ -143,7 +143,7 @@ export default function LibraryScreen() {
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.headerTitle}>My Library</Text>
-                    <Text style={styles.headerSub}>เน€เธเธฅเธเนเธฅเธฐเน€เธเธฅเธขเนเธฅเธดเธชเธ•เนเธเธญเธเธเธธเธ“</Text>
+                    <Text style={styles.headerSub}>Your songs and playlists</Text>
                 </View>
 
                 <View style={{ paddingHorizontal: 20, paddingTop: 24 }}>
