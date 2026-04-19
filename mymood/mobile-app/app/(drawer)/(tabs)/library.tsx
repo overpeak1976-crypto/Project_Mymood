@@ -9,11 +9,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import MiniPlayer from "../../../components/MiniPlayer";
 import SongContextMenu, { SongMenuItem } from "../../../components/SongContextMenu";
 import { supabase } from "../../../lib/supabase";
+import { httpClient } from "../../../lib/httpClient";
 import { useAudio } from "../../../context/AudioContext";
 import { useUser } from "../../../context/UserContext";
 import { useToast } from "../../../context/ToastContext";
+import { useRouter } from "expo-router";
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 type Song = SongMenuItem;
 type Playlist = { id: string; name: string; cover_image_url?: string; track_count: number };
@@ -22,6 +23,7 @@ export default function LibraryScreen() {
     const { playSong } = useAudio();
     const { likedSongs, likedSongIds, toggleLike } = useUser();
     const { showToast } = useToast();
+    const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [recentSongs, setRecentSongs] = useState<Song[]>([]);
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -34,17 +36,13 @@ export default function LibraryScreen() {
     const loadLibraryData = async (isBackground = false) => {
         if (!isBackground) setLoading(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) { setLoading(false); return; }
-            const headers = { Authorization: `Bearer ${session.access_token}` };
-
-            const [historyRes, playlistsRes] = await Promise.all([
-                fetch(`${BACKEND_URL}/api/play/history`, { headers }),
-                fetch(`${BACKEND_URL}/api/playlists`, { headers }),
+            const [historyData, playlistsData] = await Promise.all([
+                httpClient.get<{ recent_songs: Song[] }>('/api/play/history'),
+                httpClient.get<{ playlists: Playlist[] }>('/api/playlists'),
             ]);
 
-            if (historyRes.ok) setRecentSongs((await historyRes.json()).recent_songs || []);
-            if (playlistsRes.ok) setPlaylists((await playlistsRes.json()).playlists || []);
+            if (historyData?.recent_songs) setRecentSongs(historyData.recent_songs);
+            if (playlistsData?.playlists) setPlaylists(playlistsData.playlists);
         } catch (err) {
             console.error("Library fetch error:", err);
         } finally {
@@ -76,15 +74,9 @@ export default function LibraryScreen() {
         if (!newPlaylistName.trim()) { showToast("Please enter a playlist name", 'info'); return; }
         setIsCreating(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) throw new Error("No session");
-            const res = await fetch(`${BACKEND_URL}/api/playlists`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-                body: JSON.stringify({ name: newPlaylistName.trim() }),
+            const data = await httpClient.post<{ playlist: { id: string; name: string } }>('/api/playlists', {
+                name: newPlaylistName.trim(),
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
             setPlaylists((prev) => [{
                 id: data.playlist.id, name: data.playlist.name,
                 cover_image_url: undefined, track_count: 0,
@@ -161,7 +153,7 @@ export default function LibraryScreen() {
                     <View style={styles.grid}>
 
                         {/* Liked Songs card */}
-                        <TouchableOpacity style={styles.gridCell}>
+                        <TouchableOpacity style={styles.gridCell} onPress={() => router.push('/(drawer)/(tabs)/liked-songs')}>
                             <View style={[styles.gridCover, { backgroundColor: "#F3E8FF", borderWidth: 1, borderColor: "#DDD6FE" }]}>
                                 <Heart color="#9333ea" size={44} fill="#9333ea" />
                             </View>
@@ -180,7 +172,7 @@ export default function LibraryScreen() {
 
                         {/* User playlists */}
                         {playlists.map((playlist) => (
-                            <TouchableOpacity key={playlist.id} style={styles.gridCell}>
+                            <TouchableOpacity key={playlist.id} style={styles.gridCell} onPress={() => router.push(`/(drawer)/(tabs)/playlist/${playlist.id}`)}>
                                 {playlist.cover_image_url ? (
                                     <Image source={{ uri: playlist.cover_image_url }} style={styles.gridCover} />
                                 ) : (

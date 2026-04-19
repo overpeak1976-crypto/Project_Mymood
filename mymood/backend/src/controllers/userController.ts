@@ -48,4 +48,61 @@ export const userController = {
       res.status(500).json({ error: error.message });
     }
   },
+
+  async getMyProfile(req: AuthRequest, res: Response) {
+    console.log('[userController] getMyProfile called, user:', req.user?.id);
+    try {
+      const myId = req.user.id;
+      const profile = await userService.profileData(myId);
+      console.log('[userController] profile result:', profile ? 'found' : 'null');
+      res.status(200).json(profile);
+    } catch (error: any) {
+      console.error('[userController] getMyProfile error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async updateMyProfile(req: AuthRequest, res: Response) {
+    try {
+      const myId = req.user.id;
+      const { username, handle, bio, link, profile_image_url, banner_image_url, current_playing_song_id } = req.body;
+      const profile = await userService.uploadsData(myId, { username, handle, bio, link, profile_image_url, banner_image_url, current_playing_song_id });
+      res.status(200).json(profile);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async getPrivacySettings(req: AuthRequest, res: Response) {
+    try {
+      const myId = req.user.id;
+      const settings = await userService.getPrivacySettings(myId);
+      res.status(200).json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async updatePrivacySettings(req: AuthRequest, res: Response) {
+    try {
+      const myId = req.user.id;
+      const { show_activity_status, show_uploads } = req.body;
+      const settings = await userService.updatePrivacySettings(myId, { show_activity_status, show_uploads });
+      res.status(200).json(settings);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async getPublicProfile(req: AuthRequest, res: Response) {
+    try {
+      const userId = req.params.userId as string;
+      const myId = req.user?.id;
+      const profile = await userService.getPublicProfile(userId, myId);
+      if (!profile) return res.status(404).json({ error: 'User not found' });
+      res.status(200).json(profile);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
 };

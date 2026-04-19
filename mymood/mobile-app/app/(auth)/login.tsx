@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase";
 import { makeRedirectUri } from "expo-auth-session";
 import * as WebBrowser from 'expo-web-browser';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
+import { AntDesign } from '@expo/vector-icons';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -145,14 +146,12 @@ export default function LoginScreen() {
       </View>
 
       {/* ปุ่ม Google Login */}
+
       <TouchableOpacity
         onPress={onGoogleLogin}
-        className="bg-white py-4 rounded-2xl flex-row justify-center items-center border border-gray-200 shadow-sm"
+        className="bg-white py-4 rounded-2xl flex-row justify-center items-center border border-gray-200"
       >
-        <Image
-          source={{ uri: "https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" }}
-          className="w-6 h-6 mr-3"
-        />
+        <AntDesign name="google" size={22} color="#7C3AED" style={{ marginRight: 10 }} />
         <Text className="text-gray-700 font-bold text-base">Continue with Google</Text>
       </TouchableOpacity>
     </View>

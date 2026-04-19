@@ -11,7 +11,7 @@ export const AUDIO_MODE_CONFIG = {
 };
 
 export const PLAYBACK_DEFAULTS = {
-  progressUpdateIntervalMillis: 500,
+  progressUpdateIntervalMillis: 1000,
   shouldPlay: true,
   isMuted: false,
   volume: 1.0,

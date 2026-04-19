@@ -198,6 +198,74 @@ class HTTPClient {
   }
 
   /**
+   * POST request with FormData (for multipart file uploads)
+   * Does NOT set Content-Type header (browser sets it with multipart boundary)
+   * Does NOT JSON.stringify the body — passes FormData directly
+   */
+  async postFormData<T>(endpoint: string, formData: FormData, config?: RequestConfig): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+
+    try {
+      // Get auth token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      // Build headers WITHOUT Content-Type (let browser set multipart boundary)
+      const headers: Record<string, string> = {
+        ...config?.headers,
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutMs = config?.timeout || this.defaultTimeout;
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      console.log(`[HTTPClient] POST FormData ${endpoint}`);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await this.parseErrorResponse(response);
+        const errorMessage = errorData.message || errorData.error || response.statusText;
+        console.error(`[HTTPClient] Error ${response.status}: ${errorMessage}`);
+        throw new HTTPError(response.status, errorMessage, errorData);
+      }
+
+      const data: T = await this.parseResponse(response);
+      console.log(`[HTTPClient] Success ${response.status}`);
+      return data;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new HTTPError(
+          0,
+          'Request timeout - check your network connection',
+          { originalError: `Timeout after ${config?.timeout || this.defaultTimeout}ms` }
+        );
+      }
+      if (error instanceof HTTPError) throw error;
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new HTTPError(
+          0,
+          'Network request failed - check your internet connection',
+          { originalError: error.message }
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Parse response body safely based on Content-Type
    * Prevents JSON parse errors when backend returns HTML error pages
    */

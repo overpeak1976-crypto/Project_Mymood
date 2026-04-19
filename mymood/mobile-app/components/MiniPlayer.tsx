@@ -4,10 +4,11 @@ import { Play, Pause, SkipForward } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { useAudio } from '../context/AudioContext';
+import MiniPlayerProgress from './Miniplayerprogress';
 
 function MiniPlayer() {
   const router = useRouter();
-  const { currentSong, isPlaying, togglePlayPause, progressFraction, playNext } = useAudio();
+  const { currentSong, isPlaying, togglePlayPause, playNext } = useAudio();
   if (!currentSong) return null;
   return (
     <View className="absolute bottom-4 left-4 right-4 h-20 shadow-2xl rounded-[30px] overflow-hidden border border-white/60 bg-white/10 " >
@@ -20,10 +21,7 @@ function MiniPlayer() {
       />
 
       {/* 2. หลอดเพลงแบบ Liquid Fill */}
-      <View
-        className="absolute top-0 bottom-0 left-0 bg-purple-500/25"
-        style={{ width: `${(progressFraction || 0) * 100}%` }}
-      />
+      <MiniPlayerProgress />
 
       {/* 3. ส่วนเนื้อหา */}
       <View className="flex-1 flex-row items-center justify-between px-4 z-10">

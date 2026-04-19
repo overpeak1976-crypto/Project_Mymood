@@ -92,7 +92,7 @@ export default function RootLayout() {
         <UserProvider>
           <AudioProvider>
             <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(drawer)" />
+              <Stack.Screen name="(drawer)" options={{ animation: "slide_from_left" }} />
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="player" options={{ presentation: 'fullScreenModal' }} />
             </Stack>

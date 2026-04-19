@@ -2,15 +2,19 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Text, View, ActivityIndicator, Image, ScrollView, TouchableOpacity, TextInput, RefreshControl } from "react-native";
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { supabase } from "../../../lib/supabase";
-import { Sparkles, Flame, Sparkle, Headphones, Play, Plus, X, FolderHeart, Users, Crown } from 'lucide-react-native';
+import { httpClient } from "../../../lib/httpClient";
+import { Sparkles, Flame, Sparkle, Headphones, Play, Plus, X, FolderHeart, Users, Crown, WifiOff, RefreshCw } from 'lucide-react-native';
 import { useAudio } from '../../../context/AudioContext';
 import { useUser } from "../../../context/UserContext";
 import { useToast } from '../../../context/ToastContext';
 import MiniPlayer from "../../../components/MiniPlayer";
 import SongContextMenu from "../../../components/SongContextMenu";
 import { Heart } from 'lucide-react-native';
+import { ImageBackground } from "react-native";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from 'expo-linear-gradient';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+
 
 export default function HomeScreen() {
   const { profile, likedSongIds, isUserLoading: contextLoading } = useUser();
@@ -36,6 +40,10 @@ export default function HomeScreen() {
   const [isSavingPlaylist, setIsSavingPlaylist] = useState(false);
   const [aiModalVisible, setAiModalVisible] = useState(false);
 
+  // ── Server Status ──
+  const [serverDown, setServerDown] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
   // ── Context Menu States ──
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
   const [selectedContextSong, setSelectedContextSong] = useState<any>(null);
@@ -57,6 +65,21 @@ export default function HomeScreen() {
     const loadInitialData = async (isBackground = false) => {
       if (!isBackground) setLoading(true);
       try {
+        // Health check first
+        const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+        const controller = new AbortController();
+        const healthTimeout = setTimeout(() => controller.abort(), 5000);
+        try {
+          const res = await fetch(backendUrl, { signal: controller.signal });
+          clearTimeout(healthTimeout);
+          if (!res.ok) throw new Error('Server not ok');
+        } catch {
+          clearTimeout(healthTimeout);
+          if (isMounted) { setServerDown(true); setLoading(false); }
+          return;
+        }
+        if (isMounted) setServerDown(false);
+
         const fetchPromise = fetchDashboardData();
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Supabase Timeout!")), 10000));
         await Promise.race([fetchPromise, timeoutPromise]);
@@ -83,28 +106,69 @@ export default function HomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchDashboardData();
-    setRefreshing(false);
+    try {
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+      const controller = new AbortController();
+      const healthTimeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(backendUrl, { signal: controller.signal });
+      clearTimeout(healthTimeout);
+      if (!res.ok) throw new Error('Server not ok');
+      setServerDown(false);
+      await fetchDashboardData();
+    } catch {
+      setServerDown(true);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    try {
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+      const controller = new AbortController();
+      const healthTimeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(backendUrl, { signal: controller.signal });
+      clearTimeout(healthTimeout);
+      if (!res.ok) throw new Error('Server not ok');
+      setServerDown(false);
+      setLoading(true);
+      await fetchDashboardData();
+      setLoading(false);
+    } catch {
+      setServerDown(true);
+      showToast('เซิร์ฟเวอร์ยังไม่พร้อม ลองใหม่อีกครั้ง', 'error');
+    } finally {
+      setRetrying(false);
+    }
   };
 
   async function fetchDashboardData() {
     const { data: { session } } = await supabase.auth.getSession();
     const myId = session?.user?.id;
-    const token = session?.access_token;
 
     if (myId) {
+
       const { data: friendships } = await supabase.from('friendships')
         .select('user_id, friend_id')
         .eq('status', 'accepted')
         .or(`user_id.eq.${myId},friend_id.eq.${myId}`);
+
       const friendIds = friendships?.map(f => f.user_id === myId ? f.friend_id : f.user_id) || [];
 
       if (friendIds.length > 0) {
-        const { data: onlineFriends } = await supabase.from('users').select('id, username, profile_image_url').in('id', friendIds).eq('is_online', true);
+        const { data: onlineFriends } = await supabase.from('users').select('id, username, profile_image_url, show_activity_status').in('id', friendIds).eq('is_online', true);
         if (onlineFriends && onlineFriends.length > 0) {
-          const activities = await Promise.all(onlineFriends.map(async (friend) => {
+          // Only show activity for friends who have show_activity_status enabled
+          const visibleFriends = onlineFriends.filter(f => f.show_activity_status !== false);
+          const activities = await Promise.all(visibleFriends.map(async (friend) => {
             const { data: history } = await supabase.from('play_history').select(`played_at, song:songs (*)`).eq('user_id', friend.id).order('played_at', { ascending: false }).limit(1).maybeSingle();
-            if (history && history.song) return { friend, song: history.song };
+            if (history && history.song && history.played_at) {
+              // Only show if played within the last 15 minutes
+              const playedAt = new Date(history.played_at).getTime();
+              const fifteenMinAgo = Date.now() - 15 * 60 * 1000;
+              if (playedAt >= fifteenMinAgo) return { friend, song: history.song };
+            }
             return null;
           }));
           setFriendsActivity(activities.filter(a => a !== null));
@@ -112,27 +176,33 @@ export default function HomeScreen() {
           setFriendsActivity([]);
         }
       }
-      if (token) {
-        try {
-          const [resMy, resFriends, resTop] = await Promise.all([
-            fetch(`${BACKEND_URL}/api/songs/my-uploads`, { headers: { Authorization: `Bearer ${token}` } }),
-            fetch(`${BACKEND_URL}/api/songs/friends-uploads`, { headers: { Authorization: `Bearer ${token}` } }),
-            fetch(`${BACKEND_URL}/api/songs/top-for-you`, { headers: { Authorization: `Bearer ${token}` } }),
-          ]);
-          if (resMy.ok) setMyUploads(await resMy.json() || []);
-          if (resFriends.ok) setFriendsUploads(await resFriends.json() || []);
-          if (resTop.ok) setMyTopSongs(await resTop.json() || []);
-        } catch (e) {
-          console.error("Failed to fetch new API segments: ", e);
-        }
+
+      // Fetch user-specific data via httpClient (auth handled automatically)
+      try {
+        const [myUploadsData, friendsUploadsData, topSongsData] = await Promise.all([
+          httpClient.get<any[]>('/api/songs/my-uploads'),
+          httpClient.get<any[]>('/api/songs/friends-uploads'),
+          httpClient.get<any[]>('/api/songs/top-for-you'),
+        ]);
+        if (myUploadsData) setMyUploads(myUploadsData);
+        if (friendsUploadsData) setFriendsUploads(friendsUploadsData);
+        if (topSongsData) setMyTopSongs(topSongsData);
+      } catch (e) {
+        console.error("Failed to fetch new API segments: ", e);
       }
     }
 
-    const { data: newData } = await supabase.from("songs").select("*").order("created_at", { ascending: false }).limit(10);
-    if (newData) setNewSongs(newData);
-
-    const { data: popData } = await supabase.from("songs").select("*").order("play_count", { ascending: false, nullsFirst: false }).limit(10);
-    if (popData) setPopularSongs(popData);
+    // Fetch new and popular songs via httpClient
+    try {
+      const [newData, popData] = await Promise.all([
+        httpClient.get<any[]>('/api/songs?sort=newest&limit=10'),
+        httpClient.get<any[]>('/api/songs?sort=popular&limit=10'),
+      ]);
+      if (newData) setNewSongs(Array.isArray(newData) ? newData : []);
+      if (popData) setPopularSongs(Array.isArray(popData) ? popData : []);
+    } catch (e) {
+      console.error("Failed to fetch songs: ", e);
+    }
   }
 
   const handleAiSearch = async () => {
@@ -141,23 +211,14 @@ export default function HomeScreen() {
     setAiModalVisible(true);
     setAiResult(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("No session");
-
-      const res = await fetch(`${BACKEND_URL}/api/ai/generate-playlist`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ prompt: moodPrompt })
+      const data = await httpClient.post<{ songs?: any[]; title?: string; description?: string; message?: string }>('/api/ai/generate-playlist', {
+        prompt: moodPrompt
       });
-      const data = await res.json();
 
-      if (res.ok && data.songs && data.songs.length > 0) {
+      if (data.songs && data.songs.length > 0) {
         setAiResult({
-          title: data.title,
-          description: data.description,
+          title: data.title || 'AI Playlist',
+          description: data.description || '',
           songs: data.songs
         });
       } else {
@@ -177,31 +238,16 @@ export default function HomeScreen() {
     if (!aiResult || aiResult.songs.length === 0) return;
     setIsSavingPlaylist(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("No session");
-
       const songIds = aiResult.songs.map(s => s.id);
-      const res = await fetch(`${BACKEND_URL}/api/ai/save-playlist`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          name: aiResult.title,
-          description: aiResult.description,
-          cover_image_url: aiResult.songs[0]?.cover_image_url || null,
-          song_ids: songIds
-        })
+      await httpClient.post('/api/ai/save-playlist', {
+        name: aiResult.title,
+        description: aiResult.description,
+        cover_image_url: aiResult.songs[0]?.cover_image_url || null,
+        song_ids: songIds
       });
 
-      const data = await res.json();
-      if (res.ok) {
-        showToast("Playlist saved to library!", 'success');
-        setAiModalVisible(false);
-      } else {
-        throw new Error(data.error || "Failed to save");
-      }
+      showToast("Playlist saved to library!", 'success');
+      setAiModalVisible(false);
     } catch (err: any) {
       showToast(`Error: ${err.message}`, 'error');
     } finally {
@@ -221,6 +267,39 @@ export default function HomeScreen() {
     );
   }
 
+  if (serverDown) {
+    return (
+      <View className="flex-1 bg-[#F5F3FF] justify-center items-center px-8">
+        <View className="bg-white rounded-3xl p-8 items-center shadow-lg w-full max-w-sm">
+          <View className="w-20 h-20 bg-purple-100 rounded-full items-center justify-center mb-6">
+            <WifiOff size={40} color="#7C3AED" />
+          </View>
+          <Text className="text-2xl font-extrabold text-gray-800 mb-2 text-center">
+            ปิดปรับปรุงชั่วคราว
+          </Text>
+          <Text className="text-gray-500 text-center text-base mb-6 leading-6">
+            เซิร์ฟเวอร์กำลังปิดปรับปรุง{"\n"}กรุณารอสักครู่แล้วลองใหม่อีกครั้ง
+          </Text>
+          <TouchableOpacity
+            className="bg-purple-600 px-8 py-3.5 rounded-full flex-row items-center"
+            onPress={handleRetry}
+            disabled={retrying}
+          >
+            {retrying ? (
+              <ActivityIndicator size="small" color="white" />
+            ) : (
+              <>
+                <RefreshCw size={18} color="white" />
+                <Text className="text-white font-bold text-base ml-2">ลองใหม่</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+        <Text className="text-gray-400 text-xs mt-6">MyMood • Server Maintenance</Text>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-[#F5F3FF]">
       <ScrollView
@@ -229,22 +308,73 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── Header Section ── */}
-        <View className="pt-6 pb-6 px-6 bg-white rounded-b-[40px] shadow-sm mb-6 z-10 w-full relative">
-          <View className="flex-row items-center justify-between">
-            <View>
-              <Text className="text-2xl font-extrabold text-purple-900 mt-1">
-                {profile?.username || "Guest"}!
-              </Text>
-              <Text className="text-purple-600 font-medium">@{profile?.handle || "User"}</Text>
+        <ImageBackground
+          source={{
+            uri: profile?.banner_image_url ||
+              `https://ui-avatars.com/api/?name=${profile?.username || "U"}&background=7C3AED&color=fff`
+          }}
+          className="mb-6 z-10 w-full relative overflow-hidden "
+        // ✅ แก้: ย้าย rounded มาที่นี่ + overflow-hidden
+        >
+          {/* ✅ เพิ่ม: Gradient overlay ไล่ระดับจากด้านล่างขึ้น ทำให้ข้อความอ่านง่ายขึ้น */}
+          <LinearGradient
+            colors={['transparent', 'rgba(245,243,255,0.95)']}
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 80,          // 🔧 ปรับความสูงของ fade ได้ตามชอบ
+              zIndex: 5,
+              pointerEvents: 'none',
+            }}
+          />
+
+          {/* ✅ แก้: ลด intensity ลง + เปลี่ยน tint เพื่อให้ banner โชว์ผ่านมากขึ้น */}
+          <BlurView
+            intensity={30}
+            tint="dark"
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+          />
+
+          <View className="pt-10 pb-10 px-5 z-10">
+
+            {/* ── Row 1: Avatar + Name ── */}
+            <View className="flex-row items-center gap-4">
+
+              {/* ✅ เพิ่ม: Online indicator dot บน avatar */}
+              <View className="relative">
+                <TouchableOpacity
+                  className="w-16 h-16 rounded-full border-2 border-purple-300 overflow-hidden shadow-lg"
+                >
+                  <Image
+                    source={{
+                      uri: profile?.profile_image_url ||
+                        `https://ui-avatars.com/api/?name=${profile?.username || "U"}&background=random`
+                    }}
+                    className="w-full h-full"
+                  />
+                </TouchableOpacity>
+                {/* ✅ เพิ่ม: สถานะ online */}
+                <View className="absolute bottom-0 right-0 w-4 h-4 bg-green-400 rounded-full border-2 border-white" />
+              </View>
+
+              {/* Name block */}
+              <View className="flex-1">
+
+
+                <Text className="text-xl font-extrabold text-white leading-tight">
+                  {profile?.username || "Guest"}
+                </Text>
+                <Text className="text-purple-300 text-sm font-medium">
+                  @{profile?.handle || "user"}
+                </Text>
+              </View>
             </View>
-            <TouchableOpacity className="w-14 h-14 rounded-full border-2 border-purple-200 overflow-hidden shadow-sm">
-              <Image
-                source={{ uri: profile?.profile_image_url || "https://ui-avatars.com/api/?name=" + (profile?.username || "U") + "&background=random" }}
-                className="w-full h-full"
-              />
-            </TouchableOpacity>
+
+
           </View>
-        </View>
+        </ImageBackground>
 
         <View className="px-6">
           {/* ── AI Search Section ── */}

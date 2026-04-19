@@ -3,10 +3,9 @@ import { Text, View, TextInput, TouchableOpacity, ActivityIndicator, Image } fro
 import { useToast } from "../../context/ToastContext";
 import { useRouter } from "expo-router";
 import { supabase } from "../../lib/supabase";
-import * as ImagePicker from 'expo-image-picker'; 
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system/legacy';
-import { decode } from 'base64-arraybuffer'; 
+
 
 export default function CompleteProfileScreen() {
   const router = useRouter();
@@ -20,7 +19,7 @@ export default function CompleteProfileScreen() {
 
   useEffect(() => {
     const randomDigits = Math.floor(1000 + Math.random() * 9000);
-    
+
     supabase.auth.getUser().then(({ data }) => {
       if (data?.user) {
         const user = data.user;
@@ -67,7 +66,7 @@ export default function CompleteProfileScreen() {
     if (!username || !handle) {
       showToast("Please fill in your name and ID", 'info');
       return;
-    } 
+    }
     if (!sessionUser) return;
 
     setLoading(true);
@@ -89,41 +88,43 @@ export default function CompleteProfileScreen() {
 
       let finalImageUrl = profileImage;
 
-      // 2. 🌟 จัดการอัปโหลดรูป (รองรับทั้งไฟล์ในเครื่อง และลิงก์จาก Google)
       if (profileImage && !profileImage.includes('supabase.co')) {
         try {
-          let base64 = "";
-          let ext = "jpg";
+          let uploadUri = profileImage;
 
+          // ถ้าเป็น Google URL ใช้ URL ตรงๆ ไม่ต้องดาวน์โหลดมาก่อน
+          // เพราะ FormData ใน RN รับ local uri เท่านั้น
+          // ถ้าเป็น http ให้ข้ามการ upload แล้วใช้ URL นั้นเลย
           if (profileImage.startsWith('http')) {
-            // กรณีเป็นลิงก์เว็บ (Google Avatar) -> โหลดมาเป็นไฟล์ชั่วคราวก่อน
-            const tempFile = `${FileSystem.cacheDirectory}temp_avatar_${Date.now()}.jpg`;
-            const { uri } = await FileSystem.downloadAsync(profileImage, tempFile);
-            base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+            finalImageUrl = profileImage; // ✅ ใช้ Google URL ตรงๆ
           } else {
-            // กรณีเลือกไฟล์จากแกลเลอรี่ในเครื่อง
-            ext = profileImage.split('.').pop()?.toLowerCase() || 'jpg';
-            base64 = await FileSystem.readAsStringAsync(profileImage, { encoding: 'base64' });
+            // เป็นไฟล์ในเครื่อง → upload ด้วย FormData
+            const fileName = `${sessionUser.id}-${Date.now()}.jpg`;
+
+            const formData = new FormData();
+            formData.append("file", {
+              uri: uploadUri,
+              type: "image/jpeg",
+              name: fileName,
+            } as any);
+
+            const { error: uploadError } = await supabase.storage
+              .from("picture")
+              .upload(fileName, formData, {
+                contentType: "multipart/form-data",
+                upsert: true,
+              });
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+              .from("picture")
+              .getPublicUrl(fileName);
+
+            finalImageUrl = publicUrl;
           }
-
-          const fileName = `${sessionUser.id}/profile_${Date.now()}.${ext}`;
-          
-          // อัปโหลดเข้า Storage Bucket "picture"
-          const { error: uploadError } = await supabase.storage
-            .from("picture")
-            .upload(fileName, decode(base64), {
-              contentType: `image/${ext}`,
-              upsert: true,
-            });
-
-          if (uploadError) throw uploadError;
-
-          // ดึง Public URL มาใช้
-          const { data: { publicUrl } } = supabase.storage.from("picture").getPublicUrl(fileName);
-          finalImageUrl = publicUrl;
         } catch (imgError) {
           console.error("Image Upload Error:", imgError);
-          // ถ้าโหลดรูปพังก็ปล่อยผ่านไปใช้ UI Avatar แทน
           finalImageUrl = null;
         }
       }
@@ -144,7 +145,7 @@ export default function CompleteProfileScreen() {
         is_online: true,
         last_active: new Date(),
         updated_at: new Date()
-      }, { onConflict: 'id' }); 
+      }, { onConflict: 'id' });
 
       if (dbError) throw dbError;
 
@@ -169,7 +170,7 @@ export default function CompleteProfileScreen() {
   return (
     <View className="flex-1 bg-[#F5F3FF] px-6 pt-24">
       <Text className="text-3xl font-extrabold text-purple-800 mb-2">ยินดีต้อนรับ!</Text>
-      
+
       <View className="items-center mb-8 mt-6">
         <TouchableOpacity
           onPress={pickImage}

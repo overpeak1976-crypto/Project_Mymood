@@ -1,11 +1,9 @@
 import { Router } from 'express';
-import multer from 'multer';
 import { songController } from '../controllers/songController';
 import { authenticate } from '../middlewares/authMiddleware';
+import { upload } from '../middlewares/upload';
 
 const router = Router();
-// ใช้ multer สำหรับจัดการไฟล์อัปโหลด
-const upload = multer({ dest: 'uploads/' });
 // Endpoint: GET /api/songs
 router.get('/',authenticate, songController.getAllSongs );
 // Endpoint: POST /api/songs/upload

@@ -8,10 +8,10 @@ import { Search, X, Sparkles, Music, Heart } from "lucide-react-native";
 import MiniPlayer from "../../../components/MiniPlayer";
 import SongContextMenu, { SongMenuItem } from "../../../components/SongContextMenu";
 import { supabase } from "../../../lib/supabase";
+import { httpClient } from "../../../lib/httpClient";
 import { useAudio } from "../../../context/AudioContext";
 import { useUser } from "../../../context/UserContext";
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 const DEBOUNCE_MS = 500;
 
 type SearchResult = SongMenuItem & {
@@ -39,15 +39,10 @@ export default function AISearchScreen() {
         setLoading(true);
         setHasSearched(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session?.access_token) throw new Error("Not authenticated");
-
-            const res = await fetch(
-                `${BACKEND_URL}/api/search?q=${encodeURIComponent(q)}`,
-                { headers: { Authorization: `Bearer ${session.access_token}` } }
+            const data = await httpClient.get<{ results?: SearchResult[] }>(
+                `/api/search?q=${encodeURIComponent(q)}`
             );
-            const data = await res.json();
-            setResults(data.results || []);
+            setResults(data?.results || []);
         } catch (err) {
             console.error("Search error:", err);
             setResults([]);

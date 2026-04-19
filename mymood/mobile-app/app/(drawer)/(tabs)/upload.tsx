@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Image, ActivityIndicator } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { supabase } from '../../../lib/supabase';
+import { httpClient } from '../../../lib/httpClient';
 import { UploadCloud, Image as ImageIcon, Music, CheckCircle, BrainCircuit, Database, Layers3, ArrowUpCircle, CloudUpload, LoaderCircle } from 'lucide-react-native';
 import { useToast } from '../../../context/ToastContext';
 import MiniPlayer from '../../../components/MiniPlayer';
@@ -45,7 +45,7 @@ export default function UploadScreen() {
     const [audioFile, setAudioFile] = useState<any>(null);
     const [coverImage, setCoverImage] = useState<any>(null);
 
-    const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+
 
     const pickAudio = async () => {
         try {
@@ -100,18 +100,15 @@ export default function UploadScreen() {
             return;
         }
 
-        setLoading(true);
-        setUploadStep(0);
-        const stepInterval = setInterval(() => {
-            setUploadStep((prev) => {
-
-                if (prev < 4) return prev + 1;
-                return 0;
-            });
-        }, 3000);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) throw new Error('กรุณาล็อกอินก่อนอัปโหลดครับ');
+            setLoading(true);
+            setUploadStep(0);
+            const stepInterval = setInterval(() => {
+                setUploadStep((prev) => {
+                    if (prev < 4) return prev + 1;
+                    return 0;
+                });
+            }, 3000);
 
             const formData = new FormData();
             formData.append('title', title);
@@ -132,13 +129,10 @@ export default function UploadScreen() {
                     type: `image/${ext}`,
                 } as any);
             }
-            const response = await fetch(`${BACKEND_URL}/api/songs/upload`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${session.access_token}` },
-                body: formData,
-            });
-            const responseText = await response.text();
-            if (!response.ok) throw new Error(`อัปโหลดไม่สำเร็จ: ${responseText}`);
+
+            // Use httpClient.postFormData with extended timeout for large uploads
+            await httpClient.postFormData('/api/songs/upload', formData, { timeout: 120000 });
+
             clearInterval(stepInterval);
             setUploadStep(5);
             setTimeout(() => {
@@ -153,7 +147,6 @@ export default function UploadScreen() {
             }, 1000);
 
         } catch (error: any) {
-            clearInterval(stepInterval);
             console.error('Upload Error:', error);
             showToast(`Error: ${error.message}`, 'error');
             setLoading(false);

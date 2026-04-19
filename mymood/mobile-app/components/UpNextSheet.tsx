@@ -5,9 +5,9 @@ import { Sparkles, MoreVertical, Play, Pause, SkipForward } from 'lucide-react-n
 import { useAudio, Song } from '../context/AudioContext';
 import { useToast } from '../context/ToastContext';
 import { BlurView } from 'expo-blur';
-import { httpClient } from '@/lib/httpClient';
 import { validators } from '@/lib/validators';
 import { crashReporter } from '@/lib/crashReporter';
+import SongContextMenu from './SongContextMenu';
 
 const UpNextSheet = forwardRef<BottomSheet, {}>((props, ref) => {
   // Snap points for the bottom sheet natively matching standard players
@@ -15,28 +15,14 @@ const UpNextSheet = forwardRef<BottomSheet, {}>((props, ref) => {
   const { queue, currentSong, isPlaying, togglePlayPause, playNext, playSong, activeAiPrompt, isAiGenerating, startAiRadio } = useAudio();
   const { showToast } = useToast();
   const [prompt, setPrompt] = useState('');
+  const [showSongMenu, setShowSongMenu] = useState(false);
   const handleGenerateAI = async () => {
     if (!prompt.trim() || isAiGenerating) return;
     try {
       validators.validatePrompt(prompt);
-      const excludeIds = queue.map((song) => song.id);
-      if (currentSong?.id) {
-        excludeIds.push(currentSong.id);
-      }
-      interface AIPlaylistResponse {
-        songs: Song[];
-        prompt: string;
-        count: number;
-      }
-
-      const response = await httpClient.post<AIPlaylistResponse>('/api/ai-playlist/generate', {
-        prompt: prompt.trim(),
-        limit: 20,
-        excludeIds,
-      });
       await startAiRadio(prompt.trim());
       setPrompt('');
-      showToast(`Generated ${response.songs.length} tracks based on your vibe!`, 'success');
+      showToast('กำลังสร้างเพลย์ลิสต์จาก AI...', 'success');
     } catch (error) {
       crashReporter.captureError(error as Error, {
         context: 'UpNextSheet.handleGenerateAI',
@@ -81,12 +67,13 @@ const UpNextSheet = forwardRef<BottomSheet, {}>((props, ref) => {
             <Text className="text-gray-400 text-sm mt-1" numberOfLines={1}>{item.artist}</Text>
           </View>
         </View>
-        <TouchableOpacity className="p-2">
+        <TouchableOpacity onPress={() => setShowSongMenu(true)} className="p-2">
           <MoreVertical color="#9CA3AF" size={20} />
         </TouchableOpacity>
       </TouchableOpacity>
     );
   };
+
 
   return (
     <BottomSheet
@@ -165,7 +152,21 @@ const UpNextSheet = forwardRef<BottomSheet, {}>((props, ref) => {
           showsVerticalScrollIndicator={false}
         />
       </View>
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 60, zIndex: 20 }} pointerEvents="box-none">
+            <SongContextMenu
+              visible={showSongMenu}
+              song={currentSong ? {
+                id: currentSong.id,
+                title: currentSong.title,
+                artist: currentSong.artist,
+                cover_image_url: currentSong.cover_image_url,
+                audio_file_url: currentSong.audio_file_url,
+              } : null}
+              onClose={() => setShowSongMenu(false)}
+            />
+            </View>
     </BottomSheet>
+    
   );
 });
 

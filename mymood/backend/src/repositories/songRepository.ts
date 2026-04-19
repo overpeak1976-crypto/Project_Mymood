@@ -153,8 +153,17 @@ export const songRepository = {
 
     if (friendIds.length === 0) return [];
 
+    // Only return uploads from friends who have show_uploads enabled
+    const friendsWithUploadsVisible = await prisma.users.findMany({
+      where: { id: { in: friendIds }, show_uploads: true },
+      select: { id: true },
+    });
+
+    const visibleFriendIds = friendsWithUploadsVisible.map(f => f.id);
+    if (visibleFriendIds.length === 0) return [];
+
     return prisma.songs.findMany({
-      where: { uploaded_by: { in: friendIds } },
+      where: { uploaded_by: { in: visibleFriendIds } },
       orderBy: { created_at: 'desc' },
     });
   },

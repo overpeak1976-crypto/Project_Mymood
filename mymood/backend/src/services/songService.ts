@@ -45,13 +45,18 @@ export const songService = {
       finalArtistId = newArtist.id;
     }
 
-    // 2. Run audio analysis + upload to Cloudinary in parallel
+    // 2. Analyze audio first (uses the same file as upload)
     console.log('--- Analyzing audio and uploading to Cloudinary ---');
-    const [audioStats, coverImageUrl, finalAudioUrl] = await Promise.all([
-      audioService.analyzeAudio(audioFilePath),
+    const audioStats = await audioService.analyzeAudio(audioFilePath);
+
+    // 3. Upload files to Cloudinary in parallel (safe now — analysis is done)
+    const [coverImageUrl, finalAudioUrl] = await Promise.all([
       cloudinaryService.uploadImage(coverImageFilePath, 'mymood_covers'),
       cloudinaryService.uploadAudio(audioFilePath, 'mymood_audio'),
     ]);
+
+    if (!finalAudioUrl) throw new Error('Audio upload failed: no URL returned');
+    if (!coverImageUrl) throw new Error('Cover image upload failed: no URL returned');
     console.log(`✅ Audio uploaded: ${finalAudioUrl}`);
 
     // 3. Manage album

@@ -6,12 +6,14 @@ import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import BottomSheet from '@gorhom/bottom-sheet';
 import UpNextSheet from '../components/UpNextSheet';
+import SongContextMenu from '../components/SongContextMenu';
+import FriendPickerSheet from '../components/FriendPickerSheet';
+import PlayerProgressBar from '../components/PlayerProgressBar';
 import { useAudio } from '../context/AudioContext';
 import { useToast } from '../context/ToastContext';
-import Slider from '@react-native-community/slider';
 const { width, height } = Dimensions.get('window');
 const ModernSpinner = ({ size = 24, color = "#7C3AED" }) => {
-  const spinValue = new Animated.Value(0);
+  const spinValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.loop(
@@ -72,15 +74,16 @@ const BouncyButton = ({ onPress, children, disabled, className, style }: any) =>
 export default function PlayerScreen() {
   const router = useRouter();
   const {
-    currentSong, isPlaying, togglePlayPause, isLoading, seekTo, totalDuration,
-    currentTime, playNext, playPrevious, isShuffle, isRepeat, toggleShuffle, toggleRepeat
+    currentSong, isPlaying, togglePlayPause, isLoading,
+    playNext, playPrevious, isShuffle, isRepeat, toggleShuffle, toggleRepeat
   } = useAudio();
   const { showToast } = useToast();
-  const [isSliding, setIsSliding] = useState(false);
-  const [sliderValue, setSliderValue] = useState(0);
   const [isImageLoading, setIsImageLoading] = useState(true);
+  const [showSongMenu, setShowSongMenu] = useState(false);
+  const [showFriendPicker, setShowFriendPicker] = useState(false);
   const sheetRef = useRef<BottomSheet>(null);
   const openSheet = () => sheetRef.current?.expand();
+
   const breathingScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -105,22 +108,6 @@ export default function PlayerScreen() {
   useEffect(() => {
     setIsImageLoading(true);
   }, [currentSong?.id]);
-
-  useEffect(() => {
-    if (!isSliding && currentTime !== null && currentTime !== undefined) {
-      setSliderValue(currentTime);
-    }
-  }, [currentTime, isSliding]);
-
-  const formatTime = (milliseconds: number): string => {
-    if (!Number.isFinite(milliseconds) || milliseconds < 0) return "0:00";
-
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
 
   if (!currentSong) {
     return (
@@ -158,7 +145,7 @@ export default function PlayerScreen() {
             <ChevronDown color="#FFF" size={28} />
           </TouchableOpacity>
           <Text className="text-white text-base font-semibold tracking-tight">Now Playing</Text>
-          <TouchableOpacity className="p-2">
+          <TouchableOpacity onPress={() => setShowSongMenu(true)} className="p-2">
             <MoreVertical color="#FFF" size={26} />
           </TouchableOpacity>
         </View>
@@ -203,45 +190,7 @@ export default function PlayerScreen() {
         </View>
 
         {/* --- Timeline / Seekbar Section --- */}
-        <View className="mb-10 w-full">
-          {/* Slider: All values in milliseconds (matching AudioContext) */}
-          <Slider
-            tabIndex={0}
-            style={{ width: '100%', height: 67 }}
-            minimumValue={0}
-            maximumValue={totalDuration && totalDuration > 0 ? totalDuration : 1}
-            value={sliderValue}
-            // Thumb tracks finger perfectly: Updates locally without waiting for background sync
-            onValueChange={(value) => {
-              setIsSliding(true);
-              setSliderValue(value); // ← Local state updates instantly
-            }}
-            minimumTrackTintColor="#FFFFFF"
-            maximumTrackTintColor="#FFFFFF40"
-            thumbTintColor="#ffffff"
-            // Seek after dragging completes: Safe state transition in finally block
-            onSlidingComplete={async (value) => {
-              try {
-                // Seek directly (value is already in milliseconds)
-                await seekTo(value);
-              } catch (error) {
-                console.error('[PlayerScreen] Seek failed:', error);
-              } finally {
-                // Release lock after seek completes
-                setIsSliding(false);
-              }
-            }}
-          />
-          {/* Time displays: Remaining time on right with negative sign */}
-          <View className="flex-row justify-between px-4 mt-[-10px]">
-            <Text className="text-gray-300 text-xs font-open-sans">
-              {formatTime(sliderValue)}
-            </Text>
-            <Text className="text-gray-300 text-xs font-open-sans">
-              -{formatTime((totalDuration || 0) - sliderValue)}
-            </Text>
-          </View>
-        </View>
+        <PlayerProgressBar />
 
         {/* --- Controls Section --- */}
         <View className="flex-row items-center justify-between px-2 mb-12">
@@ -325,7 +274,7 @@ export default function PlayerScreen() {
             <Text className="text-white font-semibold text-xs tracking-wider uppercase">Up Next</Text>
           </BouncyButton>
 
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowFriendPicker(true)}>
             <Share2 color="#FFF" size={24} style={{ opacity: 0.7 }} />
           </TouchableOpacity>
         </View>
@@ -335,6 +284,31 @@ export default function PlayerScreen() {
       {/* Render Slide Up Sheet safely over everything (Absolute Z-Index natively) */}
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }} pointerEvents="box-none">
         <UpNextSheet ref={sheetRef} />
+      </View>
+
+      {/* Song Context Menu */}
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 }} pointerEvents="box-none">
+        <SongContextMenu
+          visible={showSongMenu}
+          song={currentSong ? {
+            id: currentSong.id,
+            title: currentSong.title,
+            artist: currentSong.artist,
+            cover_image_url: currentSong.cover_image_url,
+            audio_file_url: currentSong.audio_file_url,
+          } : null}
+          onClose={() => setShowSongMenu(false)}
+        />
+      </View>
+
+      {/* Friend Picker for sharing */}
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 30 }} pointerEvents="box-none">
+        <FriendPickerSheet
+          visible={showFriendPicker}
+          songId={currentSong?.id || null}
+          songTitle={currentSong?.title || null}
+          onClose={() => setShowFriendPicker(false)}
+        />
       </View>
     </View>
   );

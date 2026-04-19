@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "expo-av": "^16.0.8",
-    "react-native-safe-area-context": "^5.7.0"
-  }
-}

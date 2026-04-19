@@ -16,4 +16,14 @@ router.put('/accept-friend', authenticate, userController.acceptFriend);
 
 router.get('/my-top-genres', authenticate, userController.getMyTopGenres);
 
+router.get('/profile', authenticate, userController.getMyProfile);
+
+router.put('/profile', authenticate, userController.updateMyProfile);
+
+router.get('/privacy', authenticate, userController.getPrivacySettings);
+
+router.put('/privacy', authenticate, userController.updatePrivacySettings);
+
+router.get('/public-profile/:userId', authenticate, userController.getPublicProfile);
+
 export default router;

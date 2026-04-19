@@ -13,6 +13,44 @@ export const adminUserController = {
     }
   },
 
+  async getUserDetail(req: AuthRequest, res: Response) {
+    try {
+      const data = await adminService.getUserDetail(req.params.id as string);
+      res.status(200).json(data);
+    } catch (error: any) {
+      const status = error.message.includes('ไม่พบ') ? 404 : 500;
+      res.status(status).json({ error: error.message });
+    }
+  },
+
+  async updateUserRole(req: AuthRequest, res: Response) {
+    try {
+      const { role } = req.body;
+      await adminService.updateUserRole(req.params.id as string, role);
+      res.status(200).json({ message: 'อัปเดตสิทธิ์สำเร็จ' });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  },
+
+  async clearUserProfileImage(req: AuthRequest, res: Response) {
+    try {
+      await adminService.clearUserProfileImage(req.params.id as string);
+      res.status(200).json({ message: 'ลบรูปโปรไฟล์สำเร็จ' });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
+  async clearUserBannerImage(req: AuthRequest, res: Response) {
+    try {
+      await adminService.clearUserBannerImage(req.params.id as string);
+      res.status(200).json({ message: 'ลบแบนเนอร์สำเร็จ' });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+
   async sendMessageToUser(req: AuthRequest, res: Response) {
     try {
       const id = req.params.id as string;

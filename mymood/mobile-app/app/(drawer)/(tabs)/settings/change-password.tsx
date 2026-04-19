@@ -1,10 +1,10 @@
 import React, { useState, useRef } from "react";
 import { View, Text, TouchableOpacity, TextInput, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "../../../lib/supabase";
+import { supabase } from "../../../../lib/supabase";
 
 export default function ChangePassword() {
-    
+
     const [oldPassword, setOldPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -13,7 +13,7 @@ export default function ChangePassword() {
     const [showNew, setShowNew] = useState(false);
 
 
-    const oldRef = useRef<TextInput>(null); 
+    const oldRef = useRef<TextInput>(null);
 
     // ✅ เพิ่ม function นี้ (logic ปุ่ม Save)
     const handleSave = async () => {
@@ -62,16 +62,16 @@ export default function ChangePassword() {
                 <Text className="text-gray-700 font-semibold mb-2">
                     Old Password
                 </Text>
-                    <View>
-                        <TextInput
-                            ref={oldRef}
-                            className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
-                            secureTextEntry={!showOld}
-                            value={oldPassword}
-                            onChangeText={setOldPassword}
-                            placeholder="Enter old password"
-                        />
-                    <TouchableOpacity 
+                <View>
+                    <TextInput
+                        ref={oldRef}
+                        className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
+                        secureTextEntry={!showOld}
+                        value={oldPassword}
+                        onChangeText={setOldPassword}
+                        placeholder="Enter old password"
+                    />
+                    <TouchableOpacity
                         onPress={() => setShowOld(!showOld)}
                         className="absolute right-4 top-4"
                     >
@@ -81,21 +81,21 @@ export default function ChangePassword() {
                             color="gray"
                         />
                     </TouchableOpacity>
-                    </View>
+                </View>
 
-                    {/* รหัสผ่านใหม่ */}
+                {/* รหัสผ่านใหม่ */}
                 <Text className="text-gray-700 font-semibold mb-2">
                     New password
                 </Text>
-                    <View>
-                        <TextInput
-                            className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
-                            secureTextEntry={!showNew}
-                            value={newPassword}
-                            onChangeText={setNewPassword}
-                            placeholder="Enter new password"
-                        />
-                    <TouchableOpacity 
+                <View>
+                    <TextInput
+                        className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
+                        secureTextEntry={!showNew}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        placeholder="Enter new password"
+                    />
+                    <TouchableOpacity
                         onPress={() => setShowNew(!showNew)}
                         className="absolute right-4 top-4"
                     >
@@ -105,32 +105,32 @@ export default function ChangePassword() {
                             color="gray"
                         />
                     </TouchableOpacity>
-                    </View>
-                
+                </View>
+
 
                 {/* ยืนยันรหัสผ่านใหม่ */}
                 <Text className="text-gray-700 font-semibold mb-2">
                     Confirm new password
                 </Text>
+                <View>
+                    <TextInput
+                        className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
+                        secureTextEntry
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        placeholder="Confirm password"
+                    />
+                </View>
+                <TouchableOpacity
+                    className="bg-purple-600 py-4 rounded-xl mt-6"
+                    onPress={handleSave}
+                >
                     <View>
-                        <TextInput
-                            className="bg-white p-4 rounded-2xl border border-purple-100 mb-6 shadow-sm"
-                            secureTextEntry
-                            value={confirmPassword}
-                            onChangeText={setConfirmPassword}
-                            placeholder="Confirm password"
-                        />
+                        <Text className="text-white text-center font-semibold text-lg tracking-wide">
+                            Save Password
+                        </Text>
                     </View>
-                    <TouchableOpacity 
-                        className="bg-purple-600 py-4 rounded-xl mt-6"
-                        onPress={handleSave}
-                    >
-                        <View>
-                            <Text className="text-white text-center font-semibold text-lg tracking-wide">
-                                Save Password
-                            </Text>
-                        </View>
-                    </TouchableOpacity>
+                </TouchableOpacity>
             </View>
         </View>
     );

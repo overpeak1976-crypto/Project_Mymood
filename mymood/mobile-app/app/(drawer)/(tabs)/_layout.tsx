@@ -2,84 +2,47 @@ import { Tabs } from "expo-router";
 import { View, Text, Image, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerActions } from "@react-navigation/native";
-import React, { useState, useEffect } from "react";
-import { supabase } from "../../../lib/supabase";
+import React from "react";
+import { useUser } from "../../../context/UserContext"; // ✅ เพิ่ม
 
 export default function TabLayout() {
-    const [picture, setPicture] = useState<string | null>(null);
-    const [initial, setInitial] = useState<string>("?");
+    const { profile } = useUser(); // ✅ ดึงจาก context
 
-    useEffect(() => {
-        const fetchUserProfile = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                const { data: userData, error } = await supabase.from('users').select('profile_image_url, username, email').eq('id', user.id).single();
-                if (!error && userData) {
-
-                    if (userData.profile_image_url) {
-                        setPicture(userData.profile_image_url);
-                    } else if (user.user_metadata?.picture) {
-                        setPicture(user.user_metadata.picture); // สำรองถ้าใน DB ไม่มี
-                    }
-                    const nameToUse = userData.username || user.user_metadata?.full_name || userData.email || user.email || "?";
-                    setInitial(nameToUse.charAt(0).toUpperCase());
-                } else {
-
-                    if (user.user_metadata?.picture) setPicture(user.user_metadata.picture);
-                    const fallbackName = user.user_metadata?.full_name || user.email || "?";
-                    setInitial(fallbackName.charAt(0).toUpperCase());
-                }
-            }
-        };
-        fetchUserProfile();
-        const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            if (session?.user) {
-                const { data: userData } = await supabase.from('users').select('profile_image_url, username').eq('id', session.user.id).single();
-                if (userData?.profile_image_url) {
-                    setPicture(userData.profile_image_url);
-                } else {
-                    setPicture(session.user.user_metadata?.picture || null);
-                }
-                const name = userData?.username || session.user.user_metadata?.full_name || session.user.email || "?";
-                setInitial(name.charAt(0).toUpperCase());
-            } else {
-                setPicture(null);
-                setInitial("?");
-            }
-        });
-        return () => { authListener.subscription.unsubscribe(); };
-    }, []);
+    // ลบ useState และ useEffect ทั้งหมดออก ไม่ต้องการแล้ว
 
     return (
         <Tabs
             screenOptions={({ navigation }) => ({
                 headerStyle: { backgroundColor: "#EBE6FF", height: 100 },
                 tabBarStyle: { display: "none" },
-                // ☰ เปิด Drawer
                 headerLeft: () => (
                     <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={{ marginLeft: 15 }}>
                         <Ionicons name="menu" size={26} color="#7C3AED" />
-                    </TouchableOpacity>),
-                // 🎵 โลโก้ตรงกลาง
+                    </TouchableOpacity>
+                ),
                 headerTitle: () => (
-                    <Image source={require("../../../assets/images/logo_Mymood.png")} style={{ width: 120, height: 40 }} resizeMode="contain" />),
+                    <TouchableOpacity onPress={() => navigation.navigate("index")}>
+                        <Image source={require("../../../assets/images/logo_Mymood.png")} style={{ width: 120, height: 40 }} resizeMode="contain" />
+                    </TouchableOpacity>
+                ),
                 headerTitleAlign: "center",
-
-                // 🔍 ค้นหา + 👤 โปรไฟล์ (มุมขวาบน)
                 headerRight: () => (
                     <View style={{ flexDirection: "row", alignItems: "center", marginRight: 15, gap: 15 }}>
                         <TouchableOpacity onPress={() => navigation.navigate("AIsearch")}>
                             <Ionicons name="search" size={24} color="#7C3AED" />
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => navigation.navigate("profile")}>
-                            {picture ? (
+                            {profile?.profile_image_url ? (
                                 <Image
-                                    source={{ uri: picture }}
-                                    style={{ width: 35, height: 35, borderRadius: 50, borderWidth: 1.5, borderColor: "#7C3AED" }} />
+                                    key={profile.profile_image_url} // ✅ re-render เมื่อรูปเปลี่ยน
+                                    source={{ uri: profile.profile_image_url }}
+                                    style={{ width: 35, height: 35, borderRadius: 50, borderWidth: 1.5, borderColor: "#7C3AED" }}
+                                />
                             ) : (
-                                <View
-                                    style={{ width: 35, height: 35, borderRadius: 50, backgroundColor: "#333", justifyContent: "center", alignItems: "center" }}>
-                                    <Text style={{ color: "#fff", fontWeight: "bold" }}>{initial}</Text>
+                                <View style={{ width: 35, height: 35, borderRadius: 50, backgroundColor: "#333", justifyContent: "center", alignItems: "center" }}>
+                                    <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                                        {profile?.username?.charAt(0).toUpperCase() || "?"}
+                                    </Text>
                                 </View>
                             )}
                         </TouchableOpacity>
@@ -87,13 +50,17 @@ export default function TabLayout() {
                 ),
             })}
         >
-            <Tabs.Screen name="index" options={{ title: "" }} />
-            <Tabs.Screen name="profile" options={{ title: "" }} />
-            <Tabs.Screen name="AIsearch" options={{ title: "" }} />
-            <Tabs.Screen name="upload" options={{ title: "" }} />
-            <Tabs.Screen name="friends" options={{ title: "" }} />
-            <Tabs.Screen name="Inbox" options={{ title: "" }} />
-            <Tabs.Screen name="setting" options={{ title: "" }} />            
+            <Tabs.Screen name="index" options={{ animation: "none", title: "" }} />
+            <Tabs.Screen name="profile" options={{ animation: "none", title: "" }} />
+            <Tabs.Screen name="AIsearch" options={{ animation: "none", title: "" }} />
+            <Tabs.Screen name="upload" options={{ animation: "none", title: "" }} />
+            <Tabs.Screen name="friends" options={{ animation: "none", title: "" }} />
+            <Tabs.Screen name="Inbox" options={{ animation: "none", title: "" }} />
+            <Tabs.Screen name="settings" options={{ animation: "none", title: "" }} />
+            <Tabs.Screen name="library" options={{ animation: "none", title: "" }} />
+            <Tabs.Screen name="playlist/[id]" options={{ animation: "shift", title: "", headerShown: false }} />
+            <Tabs.Screen name="liked-songs" options={{ animation: "shift", title: "", headerShown: false }} />
+            <Tabs.Screen name="ProfilePublic/[id]" options={{ animation: "shift", title: "", headerShown: false }} />
         </Tabs>
     );
 }

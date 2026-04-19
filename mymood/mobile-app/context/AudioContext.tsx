@@ -1,25 +1,31 @@
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
+import { httpClient } from '@/lib/httpClient';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { useQueueManager } from '@/hooks/useQueueManager';
 import { usePlayHistory } from '@/hooks/usePlayHistory';
+import { audioEngine as audioEngineSingleton } from '@/services/AudioEngine';
 import { Song } from '@/types/audio';
 
 export type { Song };
+
+/**
+ * Stable context: values that change infrequently (song change, play/pause, queue change)
+ * Consumers of this context do NOT re-render on position updates.
+ */
 interface AudioContextType {
   currentSong: Song | null;
   isPlaying: boolean;
   isLoading: boolean;
-  currentTime: number;
-  totalDuration: number;
-  progressFraction: number;
   error: string | null;
+  volume: number;
 
   playSong: (song: Song, playlist?: Song[]) => Promise<void>;
   togglePlayPause: () => Promise<void>;
   seekTo: (millis: number) => Promise<void>;
   playNext: () => Promise<void>;
   playPrevious: () => Promise<void>;
+  setVolume: (v: number) => Promise<void>;
 
   queue: Song[];
   currentIndex: number;
@@ -28,14 +34,25 @@ interface AudioContextType {
   toggleShuffle: () => void;
   toggleRepeat: () => void;
 
-
   activeAiPrompt: string | null;
   isAiGenerating: boolean;
   startAiRadio: (prompt: string) => Promise<void>;
   stopAiRadio: () => void;
+  stopAndReset: () => Promise<void>;
+}
+
+/**
+ * Progress context: fast-changing position/duration values.
+ * Only subscribed to by progress bar components (MiniPlayerProgress, PlayerProgressBar).
+ */
+interface AudioProgressContextType {
+  currentTime: number;
+  totalDuration: number;
+  progressFraction: number;
 }
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
+const AudioProgressContext = createContext<AudioProgressContextType | undefined>(undefined);
 
 export function AudioProvider({ children }: { children: React.ReactNode }) {
 
@@ -51,13 +68,20 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   const currentPlayingRef = useRef<{ songId: string; startTime: number } | null>(null);
   const isTransitioningRef = useRef(false);
   const lastHandledEndPositionRef = useRef<number>(0);
-  const playSongTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPositionCheckRef = useRef(0);
+  const [volume, setVolumeState] = useState(0.9);
   const seekTo = useCallback(async (millis: number): Promise<void> => {
     try {
       await audioEngine.seek(millis);
     } catch (error) {
       console.error('[AudioContext] Seek failed:', error);
     }
+  }, [audioEngine]);
+
+  const setVolume = useCallback(async (v: number): Promise<void> => {
+    const clamped = Math.min(1, Math.max(0, v));
+    setVolumeState(clamped);
+    await audioEngine.setVolume(clamped);
   }, [audioEngine]);
 
   const refillAiRadio = useCallback(async (): Promise<void> => {
@@ -73,37 +97,31 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     try {
       isRefillingRef.current = true;
 
-      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
-      const currentIds = queueMgr.state.songs.map((s) => s.id);
+      // Exclude all songs in queue to prevent duplicates
+      const allIds = queueMgr.state.songs.map((s) => s.id);
 
-      const response = await fetch(`${backendUrl}/api/ai/generate-playlist`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionTokenRef.current}`,
-        },
-        body: JSON.stringify({
-          prompt: activeAiPrompt,
-          limit: 10,
-          excludeIds: currentIds,
-        }),
+      const data = await httpClient.post<{ songs?: Song[] }>('/api/ai/generate-playlist', {
+        prompt: activeAiPrompt,
+        limit: 5,
+        excludeIds: allIds,
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
       if (data.songs && data.songs.length > 0) {
-        queueMgr.appendSongs(data.songs);
+        // Filter out any duplicates that slipped through
+        const existingIds = new Set(allIds);
+        const uniqueSongs = data.songs.filter((s) => !existingIds.has(s.id));
+        if (uniqueSongs.length > 0) {
+          queueMgr.appendSongs(uniqueSongs);
+          console.log(`[AudioContext] AI Radio refilled +${uniqueSongs.length} unique songs`);
+        } else {
+          console.log('[AudioContext] AI Radio: all returned songs were duplicates');
+        }
       } else {
-        setIsAiExhausted(true);
-        console.log('[AudioContext] AI Radio exhausted - no more unique songs');
+        console.log('[AudioContext] AI Radio: no new songs returned, will retry next track');
       }
     } catch (error) {
       console.error('[AudioContext] refillAiRadio failed:', error);
-      setIsAiExhausted(true);
+      // Don't set exhausted on error — will retry on next track change
     } finally {
       isRefillingRef.current = false;
     }
@@ -122,7 +140,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        console.log('[AudioContext] playSong: Setting transition lock to TRUE');
+
         isTransitioningRef.current = true;
 
         if (playlist.length > 0) {
@@ -149,14 +167,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         try {
           console.log('[AudioContext] Loading audio:', song.audio_file_url);
           await audioEngine.loadWithFallback(song.audio_file_url, song.fallback_uri);
-          console.log('[AudioContext] Audio loaded successfully, now playing');
         } catch (loadError) {
           console.error('[AudioContext] Failed to load audio:', loadError);
           throw loadError;
         }
         try {
+          await audioEngine.setVolume(volume);
           await audioEngine.play();
-          console.log('[AudioContext] Playback started for:', song.title);
         } catch (playError) {
           console.error('[AudioContext] Failed to start playback:', playError);
           throw playError;
@@ -164,6 +181,13 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
 
         currentPlayingRef.current = null;
         console.log('[AudioContext] playSong SUCCESS - will release lock in finally');
+
+        // Update current_playing_song_id in database
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user?.id) {
+            supabase.from('users').update({ current_playing_song_id: song.id }).eq('id', session.user.id).then(() => {});
+          }
+        });
       } catch (error) {
         console.error('[AudioContext] Failed to play song:', error);
       } finally {
@@ -267,25 +291,11 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         setActiveAiPrompt(prompt);
         setIsAiExhausted(false);
 
-        const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
-        const response = await fetch(`${backendUrl}/api/ai/generate-playlist`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${sessionTokenRef.current}`,
-          },
-          body: JSON.stringify({
-            prompt,
-            limit: 20,
-            excludeIds: currentSong ? [currentSong.id] : [],
-          }),
+        const data = await httpClient.post<{ songs?: Song[]; title?: string; description?: string }>('/api/ai/generate-playlist', {
+          prompt,
+          limit: 20,
+          excludeIds: currentSong ? [currentSong.id] : [],
         });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
 
         if (!data.songs || data.songs.length === 0) {
           setIsAiExhausted(true);
@@ -311,6 +321,26 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     setIsAiGenerating(false);
     isRefillingRef.current = false;
   }, []);
+
+  const stopAndReset = useCallback(async (): Promise<void> => {
+    try {
+      await audioEngine.stop();
+      setCurrentSong(null);
+      queueMgr.setQueue([]);
+      stopAiRadio();
+      currentPlayingRef.current = null;
+      lastHandledEndPositionRef.current = 0;
+      // Clear current_playing_song_id in database
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user?.id) {
+          supabase.from('users').update({ current_playing_song_id: null }).eq('id', session.user.id).then(() => {});
+        }
+      });
+      console.log('[AudioContext] Audio stopped and reset');
+    } catch (error) {
+      console.error('[AudioContext] stopAndReset failed:', error);
+    }
+  }, [audioEngine, queueMgr, stopAiRadio]);
 
   useEffect(() => {
     const setupAuth = async () => {
@@ -343,115 +373,136 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     lastHandledEndPositionRef.current = 0;
   }, [queueMgr.state.currentIndex, queueMgr.state.songs, queueMgr.state.shuffle]);
 
+  // Keep refs updated for the direct AudioEngine subscription below
+  const currentSongRef = useRef(currentSong);
+  const playNextRef = useRef(playNext);
+  const playRandomNextRef = useRef(playRandomNext);
+  const playHistoryRef = useRef(playHistory);
+  const queueMgrRef = useRef(queueMgr);
+  useEffect(() => { currentSongRef.current = currentSong; }, [currentSong]);
+  useEffect(() => { playNextRef.current = playNext; }, [playNext]);
+  useEffect(() => { playRandomNextRef.current = playRandomNext; }, [playRandomNext]);
+  useEffect(() => { playHistoryRef.current = playHistory; }, [playHistory]);
+  useEffect(() => { queueMgrRef.current = queueMgr; }, [queueMgr]);
+
+  // Direct subscription to AudioEngine singleton for position-dependent logic.
+  // This runs on every engine state change WITHOUT causing React re-renders.
   useEffect(() => {
-    if (!audioEngine.state.isLoading && audioEngine.state.duration > 0 && !isTransitioningRef.current) {
-      const isFinished = audioEngine.state.position >= audioEngine.state.duration * 0.99;
-      if (isFinished && audioEngine.state.isPlaying === false && currentSong) {
-        if (audioEngine.state.position > lastHandledEndPositionRef.current) {
-          lastHandledEndPositionRef.current = audioEngine.state.position;
-          if (queueMgr.state.repeat) {
-            console.log('[AudioContext] Song finished - REPEAT ON: Replaying current song', currentSong.title);
-            audioEngine.seek(0).then(() => {
-              audioEngine.play().catch((err) => {
-                console.error('[AudioContext] Failed to replay song:', err);
-                playNext();
-              });
-            });
-          } else if (queueMgr.state.shuffle) {
-            console.log('[AudioContext] Song finished - SHUFFLE ON: Picking random song from queue');
-            playRandomNext();
+    const unsub = audioEngineSingleton.subscribe((engineState) => {
+      // ── Song-end detection (NOT throttled — must react immediately) ──
+      if (!engineState.isLoading && engineState.duration > 0 && !isTransitioningRef.current && currentSongRef.current) {
+        // Primary: use didJustFinish from expo-av (most reliable)
+        // Fallback: position-based check for edge cases
+        const finished = engineState.didJustFinish ||
+          (engineState.position >= engineState.duration * 0.99 && !engineState.isPlaying);
+
+        if (finished && engineState.position > lastHandledEndPositionRef.current) {
+          lastHandledEndPositionRef.current = engineState.position;
+          const qm = queueMgrRef.current;
+          if (qm.state.repeat) {
+            audioEngineSingleton.seek(0).then(() =>
+              audioEngineSingleton.play().catch(() => playNextRef.current())
+            );
+          } else if (qm.state.shuffle) {
+            playRandomNextRef.current();
           } else {
-            console.log('[AudioContext] Song finished - Normal mode: Moving to next song');
-            playNext();
+            playNextRef.current();
           }
         }
       }
-    }
-  }, [audioEngine.state.position, audioEngine.state.duration, audioEngine.state.isPlaying, currentSong, playNext, playRandomNext, queueMgr.state.repeat, queueMgr.state.shuffle, audioEngine, queueMgr]);
+
+      // ── Play history recording (throttled) ──
+      const now = Date.now();
+      if (now - lastPositionCheckRef.current >= 800) {
+        lastPositionCheckRef.current = now;
+        const song = currentSongRef.current;
+        if (song && engineState.duration > 0) {
+          const playThreshold = Math.max(engineState.duration * 0.8, 30000);
+          if (engineState.position >= playThreshold && currentPlayingRef.current === null) {
+            currentPlayingRef.current = { songId: song.id, startTime: Date.now() };
+            playHistoryRef.current.recordPlay(song.id, engineState.duration, engineState.position);
+            queueMgrRef.current.recordPlay(song.id);
+          }
+        }
+      }
+    });
+    return unsub;
+  }, []); // Empty deps: uses refs for all mutable values
   useEffect(() => {
     if (activeAiPrompt && !isAiExhausted && queueMgr.shouldRefillQueue()) {
       refillAiRadio();
     }
   }, [queueMgr.state.currentIndex, activeAiPrompt, isAiExhausted, refillAiRadio]);
 
-  useEffect(() => {
-    if (!currentSong || !audioEngine.state.duration) return;
+  // ── Memoized stable context value (does NOT include position/progress) ──
+  const stableValue = useMemo<AudioContextType>(() => ({
+    currentSong,
+    isPlaying: audioEngine.state.isPlaying,
+    isLoading: audioEngine.state.isLoading,
+    error: audioEngine.state.error,
+    playSong,
+    togglePlayPause,
+    seekTo,
+    playNext,
+    playPrevious,
+    queue: queueMgr.state.songs,
+    currentIndex: queueMgr.state.currentIndex,
+    isShuffle: queueMgr.state.shuffle,
+    isRepeat: queueMgr.state.repeat,
+    toggleShuffle,
+    toggleRepeat,
+    activeAiPrompt,
+    isAiGenerating,
+    startAiRadio,
+    stopAiRadio,
+    stopAndReset,
+    volume,
+    setVolume,
+  }), [
+    currentSong, audioEngine.state.isPlaying, audioEngine.state.isLoading, audioEngine.state.error,
+    playSong, togglePlayPause, seekTo, playNext, playPrevious,
+    queueMgr.state.songs, queueMgr.state.currentIndex, queueMgr.state.shuffle, queueMgr.state.repeat,
+    toggleShuffle, toggleRepeat, activeAiPrompt, isAiGenerating, startAiRadio, stopAiRadio, stopAndReset, volume, setVolume,
+  ]);
 
-    const playThreshold = Math.max(audioEngine.state.duration * 0.8, 30000);
-
-    if (
-      audioEngine.state.position >= playThreshold &&
-      currentPlayingRef.current === null
-    ) {
-      currentPlayingRef.current = {
-        songId: currentSong.id,
-        startTime: Date.now(),
-      };
-
-      playHistory.recordPlay(
-        currentSong.id,
-        audioEngine.state.duration,
-        audioEngine.state.position
-      );
-
-      queueMgr.recordPlay(currentSong.id);
-    }
-  }, [audioEngine.state.position, audioEngine.state.duration, currentSong, playHistory]);
+  // ── Memoized progress context value (changes on position updates) ──
+  const progressValue = useMemo<AudioProgressContextType>(() => ({
+    currentTime: audioEngine.state.position,
+    totalDuration: audioEngine.state.duration,
+    progressFraction: audioEngine.state.duration > 0
+      ? audioEngine.state.position / audioEngine.state.duration
+      : 0,
+  }), [audioEngine.state.position, audioEngine.state.duration]);
 
   return (
-    <AudioContext.Provider
-      value={{
-        // Current state
-        currentSong,
-        isPlaying: audioEngine.state.isPlaying,
-        isLoading: audioEngine.state.isLoading,
-        // NOTE: All timestamps in milliseconds to match AudioEngine units
-        currentTime: audioEngine.state.position,
-        totalDuration: audioEngine.state.duration,
-        progressFraction: audioEngine.state.duration > 0
-          ? audioEngine.state.position / audioEngine.state.duration
-          : 0,
-        error: audioEngine.state.error,
-
-        // Playback controls
-        playSong,
-        togglePlayPause,
-        seekTo,
-        playNext,
-        playPrevious,
-
-        // Queue state
-        queue: queueMgr.state.songs,
-        currentIndex: queueMgr.state.currentIndex,
-        isShuffle: queueMgr.state.shuffle,
-        isRepeat: queueMgr.state.repeat,
-
-        // Queue controls
-        toggleShuffle,
-        toggleRepeat,
-
-        // AI Radio state
-        activeAiPrompt,
-        isAiGenerating,
-
-        // AI Radio controls
-        startAiRadio,
-        stopAiRadio,
-      }}
-    >
-      {children}
+    <AudioContext.Provider value={stableValue}>
+      <AudioProgressContext.Provider value={progressValue}>
+        {children}
+      </AudioProgressContext.Provider>
     </AudioContext.Provider>
   );
 }
 
 /**
- * useAudio: Hook to consume AudioContext
- * Throws error if used outside AudioProvider
+ * useAudio: Hook for stable audio state (song, play/pause, queue, controls)
+ * Does NOT cause re-renders on position updates.
  */
 export const useAudio = (): AudioContextType => {
   const context = useContext(AudioContext);
   if (!context) {
     throw new Error('useAudio must be used within an AudioProvider');
+  }
+  return context;
+};
+
+/**
+ * useAudioProgress: Hook for fast-changing progress values (position, duration, fraction)
+ * Only subscribe to this in components that display progress (progress bars, time displays).
+ */
+export const useAudioProgress = (): AudioProgressContextType => {
+  const context = useContext(AudioProgressContext);
+  if (!context) {
+    throw new Error('useAudioProgress must be used within an AudioProvider');
   }
   return context;
 };

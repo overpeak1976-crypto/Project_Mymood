@@ -4,6 +4,7 @@ import { AUDIO_MODE_CONFIG, PLAYBACK_DEFAULTS, ERROR_CONFIG, validateAudioUrl } 
 export interface AudioEngineState {
   isLoading: boolean;
   isPlaying: boolean;
+  didJustFinish: boolean;
   duration: number;
   position: number;
   rate: number;
@@ -25,6 +26,7 @@ export class AudioEngine {
   private state: AudioEngineState = {
     isLoading: false,
     isPlaying: false,
+    didJustFinish: false,
     duration: 0,
     position: 0,
     rate: 1.0,
@@ -34,6 +36,8 @@ export class AudioEngine {
 
   private listeners: Set<(state: AudioEngineState) => void> = new Set();
   private onPlaybackStatusUpdateCallback: ((status: AVPlaybackStatusSuccess | AVPlaybackStatusError) => void) | null = null;
+  private lastNotifyTime: number = 0;
+  private pendingNotifyTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.initializeAudioMode();
@@ -248,26 +252,69 @@ export class AudioEngine {
 
   /**
    * Internal: Handle playback status updates from Expo AV
+   * Position-only changes are throttled to reduce React re-renders.
+   * Important state changes (play/pause/duration/error) notify immediately.
    */
   private handlePlaybackStatusUpdate(status: AVPlaybackStatusSuccess | AVPlaybackStatusError): void {
-    // Only process if status is loaded/valid
     if ('isLoaded' in status && status.isLoaded) {
-      this.setState({
-        duration: status.durationMillis || 0,
-        position: status.positionMillis || 0,
-        isPlaying: status.isPlaying,
-      });
+      const newPosition = status.positionMillis || 0;
+      const newDuration = status.durationMillis || 0;
+      const newIsPlaying = status.isPlaying;
+      const justFinished = !!(status as any).didJustFinish;
 
-      // Detect when playback finishes naturally
-      if (status.positionMillis && status.durationMillis && status.positionMillis >= status.durationMillis) {
-        this.setState({ isPlaying: false });
+      const positionChanged = Math.abs(newPosition - this.state.position) > 200;
+      const durationChanged = newDuration !== this.state.duration;
+      const playingChanged = newIsPlaying !== this.state.isPlaying;
+
+      // didJustFinish is the most reliable song-end signal from expo-av
+      if (justFinished) {
+        this.state = { ...this.state, duration: newDuration, position: newPosition, isPlaying: false, didJustFinish: true };
+        this.flushNotify();
+      } else if (positionChanged || durationChanged || playingChanged) {
+        this.state = { ...this.state, duration: newDuration, position: newPosition, isPlaying: newIsPlaying, didJustFinish: false };
+
+        if (durationChanged || playingChanged) {
+          this.flushNotify();
+        } else {
+          this.scheduleNotify();
+        }
       }
     } else if (status.error) {
-      this.setState({ error: status.error });
+      this.state = { ...this.state, error: status.error };
+      this.flushNotify();
     }
-
-    // Notify external listeners (e.g., for queue advancement)
     this.onPlaybackStatusUpdateCallback?.(status);
+  }
+
+  /**
+   * Immediately notify all listeners and cancel any pending throttled notification
+   */
+  private flushNotify(): void {
+    if (this.pendingNotifyTimer) {
+      clearTimeout(this.pendingNotifyTimer);
+      this.pendingNotifyTimer = null;
+    }
+    this.lastNotifyTime = Date.now();
+    const snapshot = { ...this.state };
+    this.listeners.forEach(listener => listener(snapshot));
+  }
+
+  /**
+   * Schedule a throttled notification (for position-only changes)
+   */
+  private scheduleNotify(): void {
+    if (this.pendingNotifyTimer) return;
+    const elapsed = Date.now() - this.lastNotifyTime;
+    const THROTTLE_MS = 900;
+    const delay = Math.max(0, THROTTLE_MS - elapsed);
+    if (delay === 0) {
+      this.flushNotify();
+    } else {
+      this.pendingNotifyTimer = setTimeout(() => {
+        this.pendingNotifyTimer = null;
+        this.flushNotify();
+      }, delay);
+    }
   }
 
   /**

@@ -10,7 +10,15 @@ export default function DrawerLayout() {
                 drawerStyle: {
                     width: 300
                 }
-            }}>
+            }}
+        >
+            <Drawer.Screen
+                name="(tabs)"
+                options={{
+                    drawerLabel: "Home",
+                    headerShown: false,
+                }}
+            />
         </Drawer>
     );
 }

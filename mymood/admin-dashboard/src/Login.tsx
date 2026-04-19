@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../admin-dashboard/src/config/supabase';
+import { supabase } from './config/supabase';
 
 export default function Login({ setAdminToken }: { setAdminToken: (token: string) => void }) {
   const navigate = useNavigate();

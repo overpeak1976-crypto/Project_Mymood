@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { httpClient } from '../lib/httpClient';
 import { Song } from './AudioContext';
 
 interface UserProfile {
@@ -7,6 +8,7 @@ interface UserProfile {
   username: string;
   handle: string;
   profile_image_url: string;
+  banner_image_url: string;
 }
 
 interface UserContextType {
@@ -26,7 +28,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [likedSongIds, setLikedSongIds] = useState<Set<string>>(new Set());
   const [isUserLoading, setIsUserLoading] = useState(true);
 
-  const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+
 
   const fetchUserData = useCallback(async () => {
     try {
@@ -39,30 +41,27 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const headers = { Authorization: `Bearer ${session.access_token}` };
-
-      // Parallel fetch for profile and likes
-      const [profileRes, likesRes] = await Promise.all([
-        supabase.from('users').select('id, username, handle, profile_image_url').eq('id', session.user.id).maybeSingle(),
-        fetch(`${BACKEND_URL}/api/likes/my-likes`, { headers })
+      // Parallel fetch for profile and likes via httpClient (auto-auth)
+      const [profileData, likesData] = await Promise.all([
+        httpClient.get<UserProfile>('/api/users/profile'),
+        httpClient.get<{ liked_songs: Array<{ songs: Song }> }>('/api/likes/my-likes')
       ]);
 
-      if (profileRes.data) {
-        setProfile(profileRes.data as UserProfile);
+      if (profileData) {
+        setProfile(profileData);
       }
 
-      if (likesRes.ok) {
-        const likesData = await likesRes.json();
-        const songs = likesData.liked_songs || [];
-        setLikedSongs(songs);
-        setLikedSongIds(new Set<string>(songs.map((s: any) => s.id)));
-      }
+      // Extract actual song data from nested structure
+      const likeItems = likesData?.liked_songs || [];
+      const songs = likeItems.map((item: any) => item.songs);
+      setLikedSongs(songs);
+      setLikedSongIds(new Set<string>(songs.map((s: any) => s.id)));
     } catch (error) {
       console.error('Error fetching user data:', error);
     } finally {
       setIsUserLoading(false);
     }
-  }, [BACKEND_URL]);
+  }, []);
 
   useEffect(() => {
     fetchUserData();
@@ -102,21 +101,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     });
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-
-      const res = await fetch(`${BACKEND_URL}/api/likes/toggle`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ song_id: song.id })
-      });
-
-      if (!res.ok) throw new Error('Failed to toggle like on server');
-
-      const data = await res.json();
+      const data = await httpClient.post<{ isLiked: boolean }>('/api/likes/toggle', { song_id: song.id });
       setLikedSongIds(prev => {
         const next = new Set(prev);
         data.isLiked ? next.add(song.id) : next.delete(song.id);

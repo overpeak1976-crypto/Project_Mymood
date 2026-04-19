@@ -22,10 +22,10 @@ export const inboxRepository = {
         status: true,
         created_at: true,
         users_shared_inbox_sender_idTousers: {
-          select: { username: true, handle: true },
+          select: { id: true, username: true, handle: true, profile_image_url: true },
         },
         songs: {
-          select: { title: true, artist: true, cover_image_url: true },
+          select: { id: true, title: true, artist: true, cover_image_url: true, audio_file_url: true },
         },
       },
     });

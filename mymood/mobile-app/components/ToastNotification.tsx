@@ -4,10 +4,10 @@ import {
   Text,
   Animated,
   Easing,
-  SafeAreaView,
   StyleSheet,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react-native';
 import { useToast } from '@/context/ToastContext';
 export default function ToastNotification() {

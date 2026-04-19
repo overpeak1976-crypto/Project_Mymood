@@ -3,13 +3,13 @@ import {
   StyleSheet, ActivityIndicator,
 } from "react-native";
 import { Heart, ListPlus, Share2, ChevronLeft, ListMusic } from "lucide-react-native";
-import { supabase } from "../lib/supabase";
-import BottomSheet, { BottomSheetView, BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
+import { httpClient } from "../lib/httpClient";
+import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { BlurView } from 'expo-blur';
 import { useUser } from "../context/UserContext";
 import { useToast } from "../context/ToastContext";
-
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import FriendPickerSheet from "./FriendPickerSheet";
 
 export type SongMenuItem = {
   id: string;
@@ -37,6 +37,7 @@ export default function SongContextMenu({
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loadingPlaylists, setLoadingPlaylists] = useState(false);
   const [isAddingTrack, setIsAddingTrack] = useState(false);
+  const [showFriendPicker, setShowFriendPicker] = useState(false);
   const isLiked = song ? likedSongIds.has(song.id) : false;
   const sheetRef = useRef<BottomSheet>(null);
 
@@ -65,15 +66,8 @@ export default function SongContextMenu({
     setLoadingPlaylists(true);
     setShowPlaylistSelector(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
-      const res = await fetch(`${BACKEND_URL}/api/playlists`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setPlaylists(data.playlists || []);
+      const data = await httpClient.get<{ playlists: Playlist[] }>('/api/playlists');
+      setPlaylists(data?.playlists || []);
     } catch (err: any) {
       showToast(`Error: ${err.message}`, 'error');
       setShowPlaylistSelector(false);
@@ -86,19 +80,7 @@ export default function SongContextMenu({
     if (!song) return;
     setIsAddingTrack(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
-      const res = await fetch(`${BACKEND_URL}/api/playlists/${playlist.id}/tracks`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ song_id: song.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      await httpClient.post(`/api/playlists/${playlist.id}/tracks`, { song_id: song.id });
 
       handleClose();
       showToast(`"${song.title}" added to "${playlist.name}"`, 'success');
@@ -110,8 +92,9 @@ export default function SongContextMenu({
   };
 
   const handleShare = () => {
-    console.log("Share:", song?.title);
+    if (!song) return;
     handleClose();
+    setTimeout(() => setShowFriendPicker(true), 300);
   };
 
   const coverUri =
@@ -119,18 +102,30 @@ export default function SongContextMenu({
     (song ? `https://ui-avatars.com/api/?name=${encodeURIComponent(song.title)}&background=7C3AED&color=fff` : "");
 
   return (
+    <>
     <BottomSheet
       ref={sheetRef}
-      enableDynamicSizing={true}
-      snapPoints={useMemo(() => showPlaylistSelector ? ['60%'] : ['30%'], [showPlaylistSelector])}
+      // ปิด Dynamic Sizing เพื่อให้ Scroll ทำงานได้ 100%
+      enableDynamicSizing={false} 
+      // เพิ่มระยะให้ยืดจอได้กว้างขึ้นเวลาดูเพลย์ลิสต์
+      snapPoints={useMemo(() => showPlaylistSelector ? ['90%'] : ['45%'], [showPlaylistSelector])}
       enablePanDownToClose={true}
       onClose={handleClose}
       backdropComponent={renderBackdrop}
+      backgroundComponent={({ style }) => (
+              <View style={[style, { overflow: 'hidden', borderTopLeftRadius: 24, borderTopRightRadius: 24 }]}>
+                <BlurView intensity={200} tint="dark" style={{ flex: 1 }} />
+              </View>
+      )}
       backgroundStyle={{ borderRadius: 32 }}
       handleIndicatorStyle={{ backgroundColor: "#D1D5DB", width: 40, height: 4, marginTop: 10 }}
       index={-1}
     >
-      <BottomSheetView style={styles.sheet}>
+      {/* เปลี่ยนจาก BottomSheetView เป็น BottomSheetScrollView คลุมทั้งหมด */}
+      <BottomSheetScrollView 
+        contentContainerStyle={styles.sheet}
+        showsVerticalScrollIndicator={false}
+      >
         {song && (
           <>
             {/* Song Header */}
@@ -141,12 +136,10 @@ export default function SongContextMenu({
                 <Text style={styles.songArtist} numberOfLines={1}>{song.artist}</Text>
               </View>
             </View>
-            <View style={styles.divider} />
 
             {/* ── View: Options ── */}
             {!showPlaylistSelector && (
               <>
-                {/* Like / Unlike */}
                 <TouchableOpacity style={styles.menuRow} onPress={handleToggleLike}>
                   <View style={[styles.iconBg, { backgroundColor: isLiked ? "#FEE2E2" : "#F3F4F6" }]}>
                     <Heart
@@ -158,7 +151,6 @@ export default function SongContextMenu({
                   <Text style={styles.menuLabel}>{isLiked ? "Unlike" : "Like"}</Text>
                 </TouchableOpacity>
 
-                {/* Add to Playlist */}
                 <TouchableOpacity style={styles.menuRow} onPress={openPlaylistSelector}>
                   <View style={[styles.iconBg, { backgroundColor: "#EDE9FE" }]}>
                     <ListPlus size={20} color="#7C3AED" />
@@ -166,7 +158,6 @@ export default function SongContextMenu({
                   <Text style={styles.menuLabel}>Add to Playlist</Text>
                 </TouchableOpacity>
 
-                {/* Share */}
                 <TouchableOpacity style={styles.menuRow} onPress={handleShare}>
                   <View style={[styles.iconBg, { backgroundColor: "#E0F2FE" }]}>
                     <Share2 size={20} color="#0284C7" />
@@ -180,7 +171,7 @@ export default function SongContextMenu({
             {showPlaylistSelector && (
               <>
                 <TouchableOpacity
-                  style={{ flexDirection: "row", alignItems: "center" }}
+                  style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}
                   onPress={() => setShowPlaylistSelector(false)}
                 >
                   <ChevronLeft size={18} color="#7C3AED" />
@@ -192,10 +183,7 @@ export default function SongContextMenu({
                 {loadingPlaylists ? (
                   <ActivityIndicator color="#7C3AED" style={{ paddingVertical: 24 }} />
                 ) : (
-                  <BottomSheetScrollView
-                    style={{ flex: 1, maxHeight: "60%", }}
-                    showsVerticalScrollIndicator={false}
-                  >
+                  <View>
                     {playlists.length === 0 ? (
                       <Text style={{ color: "#9CA3AF", textAlign: "center", paddingVertical: 20 }}>
                         ยังไม่มีเพลย์ลิสต์ครับ
@@ -223,15 +211,23 @@ export default function SongContextMenu({
                         </TouchableOpacity>
                       ))
                     )}
-                  </BottomSheetScrollView>
+                  </View>
                 )}
               </>
             )}
           </>
         )}
-        <View style={{ height: 24 }} />
-      </BottomSheetView>
+        <View style={{ height: 40 }} />
+      </BottomSheetScrollView>
     </BottomSheet>
+
+    <FriendPickerSheet
+      visible={showFriendPicker}
+      songId={song?.id || null}
+      songTitle={song?.title || null}
+      onClose={() => setShowFriendPicker(false)}
+    />
+    </>
   );
 }
 
@@ -239,23 +235,17 @@ export default function SongContextMenu({
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet: {
-    backgroundColor: "#fff",
     paddingHorizontal: 20,
     paddingTop: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 12,
   },
   handle: { width: 40, height: 4, backgroundColor: "#D1D5DB", borderRadius: 2, alignSelf: "center", marginBottom: 20 },
   songHeader: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
   cover: { width: 52, height: 52, borderRadius: 10, backgroundColor: "#EDE9FE" },
-  songTitle: { fontWeight: "700", fontSize: 15, color: "#111827" },
+  songTitle: { fontWeight: "700", fontSize: 15, color: "#ffffffee" },
   songArtist: { color: "#6B7280", fontSize: 13, marginTop: 2 },
-  divider: { height: 1, backgroundColor: "#F3F4F6", marginBottom: 8 },
   menuRow: { flexDirection: "row", alignItems: "center", paddingVertical: 14 },
   iconBg: { width: 40, height: 40, borderRadius: 12, justifyContent: "center", alignItems: "center", marginRight: 16 },
-  menuLabel: { fontSize: 15, fontWeight: "600", color: "#1F2937" },
+  menuLabel: { fontSize: 15, fontWeight: "600", color: "#ffffffd7" },
   plRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10 },
   plThumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: "#EDE9FE" },
 });
