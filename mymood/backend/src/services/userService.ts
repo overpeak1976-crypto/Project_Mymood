@@ -42,10 +42,13 @@ export const userService = {
   },
 
   async profileData(userId: string) {
-    return userRepository.profileData(userId);
+    const user = await userRepository.profileData(userId);
+    if (!user) return null;
+    const { songs_users_profile_song_idTosongs, ...rest } = user;
+    return { ...rest, song: songs_users_profile_song_idTosongs || null };
   },
 
-  async uploadsData(userId: string, data: { username?: string; handle?: string; bio?: string; link?: string; profile_image_url?: string; banner_image_url?: string, current_playing_song_id?: string }) {
+  async uploadsData(userId: string, data: { username?: string; handle?: string; bio?: string; link?: string; profile_image_url?: string; banner_image_url?: string, profile_song_id?: string }) {
     return userRepository.uploadsData(userId, data);
   },
 
@@ -65,7 +68,7 @@ export const userService = {
       userRepository.getUploadCount(userId),
     ]);
     if (!user) return null;
-    const song = user.songs_users_current_playing_song_idTosongs;
+    const song = user.songs_users_profile_song_idTosongs || null;
 
     let friendship_status: string = 'none';
     if (myId && myId !== userId) {
@@ -87,9 +90,9 @@ export const userService = {
       banner_image_url: user.banner_image_url,
       bio: user.bio,
       link: user.link,
-      show_activity_status: user.show_activity_status,
+      profile_song_id: user.profile_song_id,
       show_uploads: user.show_uploads,
-      song: user.show_activity_status ? song : null,
+      song: user.profile_song_id ? song : null,
       playlists: playlists.map(p => ({ ...p, track_count: p.playlist_tracks.length })),
       friend_count: friendCount,
       upload_count: uploadCount,

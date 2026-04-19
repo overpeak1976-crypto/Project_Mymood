@@ -1,50 +1,53 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Text, View, ActivityIndicator, Image, ScrollView, TouchableOpacity, TextInput, RefreshControl } from "react-native";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
-import { supabase } from "../../../lib/supabase";
-import { httpClient } from "../../../lib/httpClient";
+import { supabase } from "@/lib/supabase";
+import { httpClient } from "@/services/httpClient";
 import { Sparkles, Flame, Sparkle, Headphones, Play, Plus, X, FolderHeart, Users, Crown, WifiOff, RefreshCw } from 'lucide-react-native';
-import { useAudio } from '../../../context/AudioContext';
-import { useUser } from "../../../context/UserContext";
-import { useToast } from '../../../context/ToastContext';
-import MiniPlayer from "../../../components/MiniPlayer";
-import SongContextMenu from "../../../components/SongContextMenu";
+import { useAudio } from '@/context/AudioContext';
+import { useUser } from "@/context/UserContext";
+import { useToast } from '@/context/ToastContext';
+import MiniPlayer from "@/components/MiniPlayer";
+import SongContextMenu from "@/components/SongContextMenu";
 import { Heart } from 'lucide-react-native';
 import { ImageBackground } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from "expo-router";
 
 
 
 export default function HomeScreen() {
+  const router = useRouter();
   const { profile, likedSongIds, isUserLoading: contextLoading } = useUser();
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { playSong } = useAudio();
 
-  // ── Original Arrays ──
+  //  Original Arrays 
   const [newSongs, setNewSongs] = useState<any[]>([]);
   const [popularSongs, setPopularSongs] = useState<any[]>([]);
   const [friendsActivity, setFriendsActivity] = useState<any[]>([]);
 
-  // ── New API Arrays ──
+  //  New API Arrays 
   const [myUploads, setMyUploads] = useState<any[]>([]);
   const [friendsUploads, setFriendsUploads] = useState<any[]>([]);
   const [myTopSongs, setMyTopSongs] = useState<any[]>([]);
 
-  // ── AI Generator States ──
+  //  AI Generator States   
   const [moodPrompt, setMoodPrompt] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<{ title: string; description: string; songs: any[] } | null>(null);
   const [isSavingPlaylist, setIsSavingPlaylist] = useState(false);
   const [aiModalVisible, setAiModalVisible] = useState(false);
 
-  // ── Server Status ──
+  //  Server Status 
   const [serverDown, setServerDown] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
-  // ── Context Menu States ──
+  //  Context Menu States 
   const [contextMenuVisible, setContextMenuVisible] = useState(false);
   const [selectedContextSong, setSelectedContextSong] = useState<any>(null);
   const aiSheetRef = useRef<BottomSheet>(null);
@@ -137,7 +140,7 @@ export default function HomeScreen() {
       setLoading(false);
     } catch {
       setServerDown(true);
-      showToast('เซิร์ฟเวอร์ยังไม่พร้อม ลองใหม่อีกครั้ง', 'error');
+      showToast('Retry failed. Please try again.', 'error');
     } finally {
       setRetrying(false);
     }
@@ -261,8 +264,30 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-[#F5F3FF]">
-        <ActivityIndicator size="large" color="#6B21A8" />
+      <View className="flex-1 bg-[#F5F3FF]" style={{ paddingTop: 20 }}>
+        <SkeletonLoader width="100%" height={200} borderRadius={0} className="mb-6" />
+        <View style={{ paddingHorizontal: 20 }}>
+          <SkeletonLoader width="50%" height={22} className="mb-4" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 24 }}>
+            {[1,2,3].map(i => (
+              <View key={i} style={{ marginRight: 12 }}>
+                <SkeletonLoader width={150} height={150} borderRadius={16} className="mb-2" />
+                <SkeletonLoader width={120} height={14} className="mb-1" />
+                <SkeletonLoader width={80} height={12} />
+              </View>
+            ))}
+          </ScrollView>
+          <SkeletonLoader width="45%" height={22} className="mb-4" />
+          {[1,2,3,4].map(i => (
+            <View key={i} className="flex-row items-center mb-3" style={{ gap: 12 }}>
+              <SkeletonLoader width={50} height={50} borderRadius={8} />
+              <View style={{ flex: 1 }}>
+                <SkeletonLoader width="75%" height={16} className="mb-2" />
+                <SkeletonLoader width="50%" height={12} />
+              </View>
+            </View>
+          ))}
+        </View>
       </View>
     );
   }
@@ -275,10 +300,10 @@ export default function HomeScreen() {
             <WifiOff size={40} color="#7C3AED" />
           </View>
           <Text className="text-2xl font-extrabold text-gray-800 mb-2 text-center">
-            ปิดปรับปรุงชั่วคราว
+            Server Maintenance
           </Text>
           <Text className="text-gray-500 text-center text-base mb-6 leading-6">
-            เซิร์ฟเวอร์กำลังปิดปรับปรุง{"\n"}กรุณารอสักครู่แล้วลองใหม่อีกครั้ง
+            The server is currently undergoing maintenance.{"\n"}Please try again later.
           </Text>
           <TouchableOpacity
             className="bg-purple-600 px-8 py-3.5 rounded-full flex-row items-center"
@@ -290,12 +315,12 @@ export default function HomeScreen() {
             ) : (
               <>
                 <RefreshCw size={18} color="white" />
-                <Text className="text-white font-bold text-base ml-2">ลองใหม่</Text>
+                <Text className="text-white font-bold text-base ml-2">Retry</Text>
               </>
             )}
           </TouchableOpacity>
         </View>
-        <Text className="text-gray-400 text-xs mt-6">MyMood • Server Maintenance</Text>
+        <Text className="text-gray-400 text-xs mt-6">MyMood - Server Maintenance</Text>
       </View>
     );
   }
@@ -307,16 +332,16 @@ export default function HomeScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8B5CF6" colors={['#8B5CF6']} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header Section ── */}
+        {/* Header Section */}
         <ImageBackground
           source={{
             uri: profile?.banner_image_url ||
               `https://ui-avatars.com/api/?name=${profile?.username || "U"}&background=7C3AED&color=fff`
           }}
           className="mb-6 z-10 w-full relative overflow-hidden "
-        // ✅ แก้: ย้าย rounded มาที่นี่ + overflow-hidden
+        // Note: Rounded corners + overflow-hidden
         >
-          {/* ✅ เพิ่ม: Gradient overlay ไล่ระดับจากด้านล่างขึ้น ทำให้ข้อความอ่านง่ายขึ้น */}
+          {/* Gradient overlay */}
           <LinearGradient
             colors={['transparent', 'rgba(245,243,255,0.95)']}
             style={{
@@ -324,13 +349,13 @@ export default function HomeScreen() {
               bottom: 0,
               left: 0,
               right: 0,
-              height: 80,          // 🔧 ปรับความสูงของ fade ได้ตามชอบ
+              height: 80,          // Note: Fade effect at the bottom
               zIndex: 5,
               pointerEvents: 'none',
             }}
           />
 
-          {/* ✅ แก้: ลด intensity ลง + เปลี่ยน tint เพื่อให้ banner โชว์ผ่านมากขึ้น */}
+          {/* Note: Blur effect for banner */}
           <BlurView
             intensity={30}
             tint="dark"
@@ -339,13 +364,14 @@ export default function HomeScreen() {
 
           <View className="pt-10 pb-10 px-5 z-10">
 
-            {/* ── Row 1: Avatar + Name ── */}
+            {/* Row 1: Avatar + Name */}
             <View className="flex-row items-center gap-4">
 
-              {/* ✅ เพิ่ม: Online indicator dot บน avatar */}
+              {/* Online indicator dot */}
               <View className="relative">
                 <TouchableOpacity
                   className="w-16 h-16 rounded-full border-2 border-purple-300 overflow-hidden shadow-lg"
+                  onPress={() => router.push("/(drawer)/(main)/profile" as any)}
                 >
                   <Image
                     source={{
@@ -355,7 +381,7 @@ export default function HomeScreen() {
                     className="w-full h-full"
                   />
                 </TouchableOpacity>
-                {/* ✅ เพิ่ม: สถานะ online */}
+                {/* Online indicator dot */}
                 <View className="absolute bottom-0 right-0 w-4 h-4 bg-green-400 rounded-full border-2 border-white" />
               </View>
 
@@ -377,19 +403,17 @@ export default function HomeScreen() {
         </ImageBackground>
 
         <View className="px-6">
-          {/* ── AI Search Section ── */}
+          {/* AI Search Section */}
           <View className="flex-row items-center mb-4">
             <Sparkles color="#8B5CF6" size={24} className="mr-2" />
-            <Text className="text-xl font-bold text-gray-800">
-              My mood
-            </Text>
+            <Text className="text-xl font-bold text-gray-800"> My mood</Text>
           </View>
 
 
           <View className="flex-row items-center bg-white border border-purple-200 rounded-full px-4 py-3 shadow-sm mb-8">
             <Sparkles color="#8B5CF6" size={20} />
             <TextInput
-              placeholder="บอกอารมณ์ของคุณตอนนี้..."
+              placeholder="How are you feeling today?"
               className="flex-1 ml-3 text-base text-gray-800"
               placeholderTextColor="#9CA3AF"
               value={moodPrompt}
@@ -397,16 +421,16 @@ export default function HomeScreen() {
               onSubmitEditing={handleAiSearch}
             />
             <TouchableOpacity className="bg-purple-100 px-4 py-1.5 rounded-full" onPress={handleAiSearch}>
-              <Text className="text-purple-700 font-bold">ค้นหา</Text>
+              <Text className="text-purple-700 font-bold">Search</Text>
             </TouchableOpacity>
           </View>
 
-          {/* 🌟 Section: Friends' Activity (Original) */}
+          {/* Section: Friends' Activity */}
           {friendsActivity.length > 0 && (
             <View className="mb-8">
               <View className="flex-row items-center mb-4">
                 <Headphones color="#8B5CF6" size={24} className="mr-2" />
-                <Text className="text-xl font-bold text-gray-800">เพื่อนกำลังฟัง</Text>
+                <Text className="text-xl font-bold text-gray-800"> Friends Activity</Text>
               </View>
 
               <View className="flex-col">
@@ -417,19 +441,22 @@ export default function HomeScreen() {
                     onPress={() => handlePlayAndNavigate(activity.song, friendsActivity.map(a => a.song))}
                     onLongPress={() => { setSelectedContextSong(activity.song); setContextMenuVisible(true); }}
                   >
-                    {/* ข้อมูลเพื่อน: Avatar & Online Status */}
-                    <View className="relative mr-4">
+                    {/* Avatar & Online Status */}
+                    <TouchableOpacity
+                      className="relative mr-4"
+                      onPress={() => router.push({ pathname: "/(drawer)/(main)/user/[id]", params: { id: activity.friend.id } } as any)}
+                    >
                       <Image
                         source={{ uri: activity.friend.profile_image_url || 'https://ui-avatars.com/api/?name=U' }}
                         className="w-14 h-14 rounded-full bg-gray-200"
                       />
                       <View className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full shadow-sm" />
-                    </View>
+                    </TouchableOpacity>
 
-                    {/* ข้อมูลการฟังเพลง */}
+                    {/* Song Info */}
                     <View className="flex-1 justify-center">
                       <Text className="text-gray-500 text-xs mb-0.5">
-                        <Text className="font-bold text-gray-800 text-sm">{activity.friend.username}</Text> กำลังฟัง
+                        <Text className="font-bold text-gray-800 text-sm">{activity.friend.username}</Text> is listening to
                       </Text>
                       <Text className="font-bold text-purple-900 text-base" numberOfLines={1}>
                         {activity.song.title}
@@ -439,7 +466,8 @@ export default function HomeScreen() {
                       </Text>
                     </View>
 
-                    {/* ปกเพลงขวาแนบ */}
+                    {/* Song Cover */}
+
                     <Image
                       source={{ uri: activity.song.cover_image_url || 'https://ui-avatars.com/api/?name=Song' }}
                       className="w-12 h-12 rounded-xl bg-gray-100 ml-2"
@@ -451,12 +479,12 @@ export default function HomeScreen() {
           )}
 
 
-          {/* 🌟 Section: Top For You */}
+          {/* Section: Top For You */}
           {myTopSongs.length > 0 && (
             <View className="mb-8">
               <View className="flex-row items-center mb-4">
                 <Crown color="#8B5CF6" size={24} className="mr-2" />
-                <Text className="text-xl font-bold text-gray-800">เพลงประจำตัวคุณ (Top for You)</Text>
+                <Text className="text-xl font-bold text-gray-800"> Recommendations</Text>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
                 {myTopSongs.map((song) => (
@@ -482,12 +510,12 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* 🌟 Section: New Songs (Original) */}
+          {/* Section: New Songs (Original) */}
           {newSongs.length > 0 && (
             <View className="mb-8">
               <View className="flex-row items-center mb-4">
                 <Sparkle color="#8B5CF6" size={24} className="mr-2" />
-                <Text className="text-xl font-bold text-gray-800">เพลงใหม่ล่าสุด (New Releases)</Text>
+                <Text className="text-xl font-bold text-gray-800"> New Releases</Text>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
                 {newSongs.map((song) => (
@@ -513,12 +541,12 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* 🌟 Section: Popular Songs (Original) */}
+          {/* Section: Popular Songs (Original) */}
           {popularSongs.length > 0 && (
             <View className="mb-8">
               <View className="flex-row items-center mb-4">
                 <Flame color="#F97316" size={24} className="mr-2" />
-                <Text className="text-xl font-bold text-gray-800">Top 10 เพลงยอดฮิต</Text>
+                <Text className="text-xl font-bold text-gray-800">Top 10 Popular Songs</Text>
               </View>
               <View>
                 {popularSongs.map((song, index) => (
@@ -560,12 +588,12 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* 🌟 Section: Friends Uploads */}
+          {/* Section: Friends Uploads */}
           {friendsUploads.length > 0 && (
             <View className="mb-8">
               <View className="flex-row items-center mb-4">
                 <Users color="#8B5CF6" size={24} className="mr-2" />
-                <Text className="text-xl font-bold text-gray-800">เพลงจากเพื่อนคุณ</Text>
+                <Text className="text-xl font-bold text-gray-800">Friends' Uploads</Text>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
                 {friendsUploads.map((song) => (
@@ -591,12 +619,12 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* 🌟 Section: My Uploads */}
+          {/* Section: My Uploads */}
           {myUploads.length > 0 && (
             <View className="mb-8">
               <View className="flex-row items-center mb-4">
                 <FolderHeart color="#8B5CF6" size={24} className="mr-2" />
-                <Text className="text-xl font-bold text-gray-800">เพลงที่ฉันอัปโหลด</Text>
+                <Text className="text-xl font-bold text-gray-800">My Uploads</Text>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
                 {myUploads.map((song) => (
@@ -627,7 +655,7 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* ── AI Bottom Sheet ── */}
+      {/* AI Bottom Sheet */}
       <BottomSheet
         ref={aiSheetRef}
         index={-1}
@@ -654,7 +682,7 @@ export default function HomeScreen() {
               <View className="flex-1 justify-center items-center py-10">
                 <Sparkles size={48} color="#8B5CF6" className="mb-4" />
                 <Text className="text-xl font-bold text-purple-900 mb-2">AI is thinking...</Text>
-                <Text className="text-gray-500 text-center mb-6">✨ กำลังให้ AI จัดเพลย์ลิสต์...</Text>
+                <Text className="text-gray-500 text-center mb-6">Please wait while AI generates your playlist...</Text>
                 <ActivityIndicator size="large" color="#8B5CF6" />
               </View>
             ) : aiResult ? (
@@ -697,7 +725,7 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <Text className="font-bold text-lg mb-3">เพลงในแนวนี้ ({aiResult.songs.length})</Text>
+                <Text className="font-bold text-lg mb-3">AI Playlist ({aiResult.songs.length})</Text>
 
                 {aiResult.songs.map((song, idx) => (
                   <TouchableOpacity

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { AppState, AppStateStatus } from "react-native";
-import { supabase } from "../lib/supabase";
-import { AudioProvider } from '../context/AudioContext';
-import { UserProvider } from '../context/UserContext';
-import { ToastProvider } from '../context/ToastContext';
-import ToastNotification from '../components/ToastNotification';
+import { supabase } from "@/lib/supabase";
+import { AudioProvider } from '@/context/AudioContext';
+import { UserProvider } from '@/context/UserContext';
+import { ToastProvider } from '@/context/ToastContext';
+import ToastNotification from '@/components/ToastNotification';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
@@ -44,7 +44,7 @@ export default function RootLayout() {
           }
         } else {
           if (rootSegment === "(auth)") {
-            router.replace("/(drawer)" as any);
+            router.replace("/(drawer)/(main)/(tabs)" as any);
           }
         }
       }
@@ -91,10 +91,10 @@ export default function RootLayout() {
       <ToastProvider>
         <UserProvider>
           <AudioProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(drawer)" options={{ animation: "slide_from_left" }} />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="player" options={{ presentation: 'fullScreenModal' }} />
+            <Stack screenOptions={{ headerShown: false, animation: 'default' }}>
+              <Stack.Screen name="(drawer)" options={{ animation: 'fade' }} />
+              <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+              <Stack.Screen name="player" options={{ presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
             </Stack>
           </AudioProvider>
         </UserProvider>

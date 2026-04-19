@@ -1,13 +1,20 @@
 import { View, Text, TextInput, Image, ScrollView, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { useRouter, useLocalSearchParams } from "expo-router";
-import { supabase } from "../../../../lib/supabase";
-import { httpClient } from "../../../../lib/httpClient";
+import { useRouter } from "expo-router";
+import { supabase } from "@/lib/supabase";
+import { httpClient } from "@/services/httpClient";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "@react-navigation/native";
-import { useToast } from "../../../../context/ToastContext";
-import { useUser } from "../../../../context/UserContext";
+import { useToast } from "@/context/ToastContext";
+import { useUser } from "@/context/UserContext";
+
+// Shared store for song selection between screens
+export const selectedSongStore: { songId: string | null; songName: string | null } = {
+    songId: null,
+    songName: null,
+};
 
 type SongParams = {
     songId?: string;
@@ -16,9 +23,8 @@ type SongParams = {
 
 export default function EditProfile() {
     const router = useRouter();
-    const { songId, songName } = useLocalSearchParams<SongParams>();
     const { showToast } = useToast();
-    const { refreshUserData } = useUser(); // ✅ เพิ่ม
+    const { refreshUserData } = useUser(); // Refresh user data after profile update
 
     const [profile, setProfile] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -60,11 +66,13 @@ export default function EditProfile() {
     // Handle song selection from select-song screen
     useFocusEffect(
         useCallback(() => {
-            if (songName) {
-                setSong(songName);
-                setSongIdState(songId || null);
+            if (selectedSongStore.songId && selectedSongStore.songName) {
+                setSong(selectedSongStore.songName);
+                setSongIdState(selectedSongStore.songId);
+                selectedSongStore.songId = null;
+                selectedSongStore.songName = null;
             }
-        }, [songId, songName])
+        }, [])
     );
 
     const fetchProfile = async () => {
@@ -141,7 +149,7 @@ export default function EditProfile() {
 
             const fileName = `${userData.user.id}-${Date.now()}.jpg`;
 
-            // ✅ ใช้ FormData แทน fetch().blob()
+            // โ… เนเธเน FormData เนเธ—เธ fetch().blob()
             const formData = new FormData();
             formData.append("file", {
                 uri,
@@ -181,7 +189,7 @@ export default function EditProfile() {
                 handle,
                 bio,
                 link,
-                current_playing_song_id: songIdState,
+                profile_song_id: songIdState,
             };
 
             // Upload new profile image if selected (via Supabase Storage)
@@ -216,6 +224,7 @@ export default function EditProfile() {
             await refreshUserData();
             showToast("Profile updated successfully!", "success");
             await fetchProfile();
+            router.back();
 
         } catch (error) {
             console.error("[EditProfile] Error saving profile:", error);
@@ -227,8 +236,20 @@ export default function EditProfile() {
 
     if (loading) {
         return (
-            <View className="flex-1 justify-center items-center bg-white">
-                <ActivityIndicator size="large" color="#7C3AED" />
+            <View className="flex-1 bg-white" style={{ paddingTop: 20 }}>
+                <View style={{ alignItems: "center", marginBottom: 24 }}>
+                    <SkeletonLoader width={100} height={100} borderRadius={50} />
+                </View>
+                <View style={{ paddingHorizontal: 20 }}>
+                    <SkeletonLoader width="30%" height={14} className="mb-2" />
+                    <SkeletonLoader width="100%" height={44} borderRadius={12} className="mb-4" />
+                    <SkeletonLoader width="30%" height={14} className="mb-2" />
+                    <SkeletonLoader width="100%" height={44} borderRadius={12} className="mb-4" />
+                    <SkeletonLoader width="20%" height={14} className="mb-2" />
+                    <SkeletonLoader width="100%" height={80} borderRadius={12} className="mb-4" />
+                    <SkeletonLoader width="25%" height={14} className="mb-2" />
+                    <SkeletonLoader width="100%" height={44} borderRadius={12} className="mb-4" />
+                </View>
             </View>
         );
     }
@@ -372,7 +393,7 @@ export default function EditProfile() {
                             <TouchableOpacity
                                 onPress={() => {
                                     if (!song) {
-                                        router.push("/(drawer)/(tabs)/settings/select-song");
+                                        router.push("/(drawer)/(main)/settings/select-song");
                                     }
                                 }}
                                 className="flex-row justify-between items-center border-2 border-purple-100 rounded-2xl px-4 py-3 bg-white mb-6 shadow-sm"
@@ -386,10 +407,6 @@ export default function EditProfile() {
                                         onPress={() => {
                                             setSong(null);
                                             setSongIdState(null);
-                                            router.setParams({
-                                                songId: undefined,
-                                                songName: undefined,
-                                            });
                                         }}
                                     >
                                         <Ionicons name="close-outline" size={22} color="#7C3AED" />

@@ -1,5 +1,3 @@
-import { Audio } from 'expo-av';
-
 export const AUDIO_MODE_CONFIG = {
   allowsRecordingIOS: false,
   playsInSilentModeIOS: true,

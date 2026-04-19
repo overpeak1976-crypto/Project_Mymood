@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Image, RefreshControl, ActivityIndicator, StyleSheet } from 'react-native';
-import { httpClient } from '../../../lib/httpClient';
+import { View, Text, FlatList, TouchableOpacity, Image, RefreshControl, StyleSheet } from 'react-native';
+import { SkeletonLoader } from '@/components/SkeletonLoader';
+import { httpClient } from '@/services/httpClient';
 import { Megaphone, UserPlus, Music, MailOpen, Play, Pause, Send } from 'lucide-react-native';
-import { useToast } from '../../../context/ToastContext';
-import { useAudio } from '../../../context/AudioContext';
+import { useToast } from '@/context/ToastContext';
+import { useAudio } from '@/context/AudioContext';
 import MiniPlayer from '@/components/MiniPlayer';
+import { useRouter } from 'expo-router';
 
 type Tab = 'notifications' | 'shared';
 
 export default function InboxScreen() {
+  const router = useRouter();
   const { showToast } = useToast();
   const { playSong, currentSong, isPlaying, togglePlayPause } = useAudio();
   const [activeTab, setActiveTab] = useState<Tab>('notifications');
@@ -114,12 +117,14 @@ export default function InboxScreen() {
       >
         {/* Sender row */}
         <View style={s.senderRow}>
-          <Image
-            source={{ uri: item.sender?.profile_image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sender?.username || 'U')}&background=7C3AED&color=fff` }}
-            style={s.senderAvatar}
-          />
+          <TouchableOpacity onPress={() => item.sender?.id && router.push({ pathname: "/(drawer)/(main)/user/[id]", params: { id: item.sender.id } } as any)}>
+            <Image
+              source={{ uri: item.sender?.profile_image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sender?.username || 'U')}&background=7C3AED&color=fff` }}
+              style={s.senderAvatar}
+            />
+          </TouchableOpacity>
           <Text style={s.senderText}>
-            {item.sender?.username || 'Unknown'} <Text style={{ fontWeight: '400', color: '#9CA3AF' }}>ส่งเพลงให้คุณ</Text>
+            {item.sender?.username || 'Unknown'} <Text style={{ fontWeight: '400', color: '#9CA3AF' }}>shared a song with you</Text>
           </Text>
           <Text style={s.sharedTime}>{timeStr}</Text>
         </View>
@@ -179,7 +184,7 @@ export default function InboxScreen() {
             style={[s.tab, activeTab === 'notifications' && s.tabActive]}
           >
             <Megaphone color={activeTab === 'notifications' ? '#7C3AED' : '#9CA3AF'} size={16} />
-            <Text style={[s.tabText, activeTab === 'notifications' && s.tabTextActive]}>แจ้งเตือน</Text>
+            <Text style={[s.tabText, activeTab === 'notifications' && s.tabTextActive]}>Notifications</Text>
             {unreadNotifCount > 0 && (
               <View style={[s.badge, { backgroundColor: '#EF4444' }]}>
                 <Text style={s.badgeText}>{unreadNotifCount > 9 ? '9+' : unreadNotifCount}</Text>
@@ -192,7 +197,7 @@ export default function InboxScreen() {
             style={[s.tab, activeTab === 'shared' && s.tabActive]}
           >
             <Send color={activeTab === 'shared' ? '#7C3AED' : '#9CA3AF'} size={16} />
-            <Text style={[s.tabText, activeTab === 'shared' && s.tabTextActive]}>เพลงจากเพื่อน</Text>
+            <Text style={[s.tabText, activeTab === 'shared' && s.tabTextActive]}>Shared Songs</Text>
             {unreadSharedCount > 0 && (
               <View style={[s.badge, { backgroundColor: '#8B5CF6' }]}>
                 <Text style={s.badgeText}>{unreadSharedCount > 9 ? '9+' : unreadSharedCount}</Text>
@@ -204,9 +209,16 @@ export default function InboxScreen() {
 
       {/* Content */}
       {loading ? (
-        <View style={s.loadingWrap}>
-          <ActivityIndicator size="large" color="#9333EA" />
-          <Text style={{ color: '#6B7280', marginTop: 12, fontWeight: '500' }}>กำลังโหลด Inbox...</Text>
+        <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
+          {[1,2,3,4,5].map(i => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 }}>
+              <SkeletonLoader width={44} height={44} borderRadius={22} />
+              <View style={{ flex: 1 }}>
+                <SkeletonLoader width="85%" height={14} className="mb-2" />
+                <SkeletonLoader width="50%" height={12} />
+              </View>
+            </View>
+          ))}
         </View>
       ) : activeTab === 'notifications' ? (
         <FlatList
@@ -217,8 +229,8 @@ export default function InboxScreen() {
           ListEmptyComponent={
             <View style={s.emptyWrap}>
               <Megaphone color="#E9D5FF" size={64} />
-              <Text style={s.emptyTitle}>ยังไม่มีแจ้งเตือนใหม่</Text>
-              <Text style={s.emptyDesc}>คุณจะเห็นแจ้งเตือนต่างๆ เช่น ประกาศจากแอดมิน หรือการขอเพิ่มเพื่อนที่นี่</Text>
+              <Text style={s.emptyTitle}>No Notifications</Text>
+              <Text style={s.emptyDesc}>You're all caught up! Check back later for new notifications.</Text>
             </View>
           }
         />
@@ -232,8 +244,8 @@ export default function InboxScreen() {
           ListEmptyComponent={
             <View style={s.emptyWrap}>
               <Music color="#E9D5FF" size={64} />
-              <Text style={s.emptyTitle}>ยังไม่มีเพลงจากเพื่อน</Text>
-              <Text style={s.emptyDesc}>เมื่อเพื่อนส่งเพลงให้คุณ จะแสดงที่นี่ กดเล่นได้เลย!</Text>
+              <Text style={s.emptyTitle}></Text>
+              <Text style={s.emptyDesc}>  !</Text>
             </View>
           }
         />

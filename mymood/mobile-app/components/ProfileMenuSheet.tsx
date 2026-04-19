@@ -8,7 +8,7 @@ import {
     Image,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Pencil, Share2, UserCircle2 } from "lucide-react-native";
+import { Pencil, Share2, UserCircle2, Settings } from "lucide-react-native";
 import BottomSheet, {
     BottomSheetBackdrop,
     BottomSheetView,
@@ -18,7 +18,7 @@ import { BlurView } from "expo-blur";
 interface ProfileMenuSheetProps {
     visible: boolean;
     onClose: () => void;
-    /** ข้อมูลโปรไฟล์เพื่อใช้ใน share message */
+    /** share message */
     profile?: {
         username?: string;
         handle?: string;
@@ -53,28 +53,34 @@ export default function ProfileMenuSheet({
 
     const handleEditProfile = () => {
         onClose();
-        // เล็ก delay เพื่อให้ sheet ปิดก่อน navigate
         setTimeout(() => {
-            router.push("/(drawer)/(tabs)/settings/edit-profile");
+            router.push("/(drawer)/(main)/settings/edit-profile");
+        }, 150);
+    };
+
+    const handleOpenSettings = () => {
+        onClose();
+        setTimeout(() => {
+            router.push("/(drawer)/(main)/settings" as any);
         }, 150);
     };
 
     const handleShareProfile = async () => {
         onClose();
         await Share.share({
-            title: `MyMood — ${profile?.username ?? "โปรไฟล์"}`,
-            message: `ดูโปรไฟล์ของ ${profile?.username ?? "ฉัน"} บน MyMood!\n@${profile?.handle ?? ""}`,
+            title: `MyMood - ${profile?.username ?? "Profile"}`,
+            message: `Check out ${profile?.username ?? "my"} profile on MyMood!\n@${profile?.handle ?? ""}`,
         });
     };
 
-    const displayName = profile?.username ?? "โปรไฟล์ของฉัน";
+    const displayName = profile?.username ?? "My Profile";
     const handle = profile?.handle ? `@${profile.handle}` : "";
 
     return (
         <BottomSheet
             ref={sheetRef}
             enableDynamicSizing={false}
-            snapPoints={["35%"]}
+            snapPoints={["45%"]}
             enablePanDownToClose
             onClose={onClose}
             backdropComponent={renderBackdrop}
@@ -102,7 +108,7 @@ export default function ProfileMenuSheet({
             index={-1}
         >
             <BottomSheetView style={styles.sheet}>
-                {/* ─── Profile Mini Header ─── */}
+                {/* โ”€โ”€โ”€ Profile Mini Header โ”€โ”€โ”€ */}
                 <View style={styles.header}>
                     {profile?.profile_image_url ? (
                         <Image
@@ -126,17 +132,17 @@ export default function ProfileMenuSheet({
                     </View>
                 </View>
 
-                {/* ─── Divider ─── */}
+                {/* Divider */}
                 <View style={styles.divider} />
 
-                {/* ─── Menu Items ─── */}
+                {/* Menu Items */}
                 <TouchableOpacity style={styles.menuRow} onPress={handleEditProfile} activeOpacity={0.7}>
                     <View style={[styles.iconBg, { backgroundColor: "#EDE9FE" }]}>
                         <Pencil size={20} color="#7C3AED" />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.menuLabel}>แก้ไขโปรไฟล์</Text>
-                        <Text style={styles.menuSub}>เปลี่ยนรูป ชื่อ และข้อมูลส่วนตัว</Text>
+                        <Text style={styles.menuLabel}>Edit Profile</Text>
+                        <Text style={styles.menuSub}>Change your profile information and settings</Text>
                     </View>
                 </TouchableOpacity>
 
@@ -145,11 +151,19 @@ export default function ProfileMenuSheet({
                         <Share2 size={20} color="#0284C7" />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.menuLabel}>แชร์โปรไฟล์</Text>
-                        <Text style={styles.menuSub}>แชร์โปรไฟล์ของคุณให้เพื่อน</Text>
+                        <Text style={styles.menuLabel}>Share Profile</Text>
+                        <Text style={styles.menuSub}>Share your profile with friends</Text>
                     </View>
                 </TouchableOpacity>
-
+                <TouchableOpacity style={styles.menuRow} onPress={handleOpenSettings} activeOpacity={0.7}>
+                    <View style={[styles.iconBg, { backgroundColor: "#F3F4F6" }]}>
+                        <Settings size={20} color="#6B7280" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.menuLabel}>Settings</Text>
+                        <Text style={styles.menuSub}>Account, privacy & notifications</Text>
+                    </View>
+                </TouchableOpacity>
                 <View style={{ height: 16 }} />
             </BottomSheetView>
         </BottomSheet>

@@ -22,7 +22,7 @@ const UpNextSheet = forwardRef<BottomSheet, {}>((props, ref) => {
       validators.validatePrompt(prompt);
       await startAiRadio(prompt.trim());
       setPrompt('');
-      showToast('กำลังสร้างเพลย์ลิสต์จาก AI...', 'success');
+      showToast('Generating AI playlist...', 'success');
     } catch (error) {
       crashReporter.captureError(error as Error, {
         context: 'UpNextSheet.handleGenerateAI',

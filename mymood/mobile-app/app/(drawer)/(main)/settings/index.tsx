@@ -9,8 +9,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "../../../../lib/supabase";
-import { useAudio } from "../../../../context/AudioContext";
+import { supabase } from "@/lib/supabase";
+import { useAudio } from "@/context/AudioContext";
 
 type SettingsItem = {
     icon: string;
@@ -25,6 +25,7 @@ export default function SettingsIndex() {
     const router = useRouter();
     const [user, setUser] = useState<any>(null);
     const { stopAndReset } = useAudio();
+    const { refreshUserData } = require("@/context/UserContext").useUser ? require("@/context/UserContext") : { refreshUserData: undefined };
 
     useEffect(() => {
         fetchUserProfile();
@@ -48,12 +49,12 @@ export default function SettingsIndex() {
 
     const handleLogout = async () => {
         Alert.alert(
-            "ออกจากระบบ",
-            "คุณต้องการออกจากระบบหรือไม่?",
+            "Confirm Logout",
+            "Are you sure you want to logout?",
             [
-                { text: "ยกเลิก", style: "cancel" },
+                { text: "Cancel", style: "cancel" },
                 {
-                    text: "ออกจากระบบ",
+                    text: "Logout",
                     style: "destructive",
                     onPress: async () => {
                         try {
@@ -62,11 +63,12 @@ export default function SettingsIndex() {
                             if (session?.user?.id) {
                                 await supabase
                                     .from("users")
-                                    .update({ is_online: false, current_song_id: null })
+                                    .update({ is_online: false, last_active: new Date() })
                                     .eq("id", session.user.id);
                             }
                             await supabase.auth.signOut();
-                            router.replace("/(auth)" as any);
+                            if (refreshUserData) await refreshUserData();
+                            router.replace("/(auth)/login" as any);
                         } catch (error) {
                             console.error("Logout error:", error);
                             Alert.alert("Error", "Failed to logout");
@@ -80,16 +82,16 @@ export default function SettingsIndex() {
     const accountSettings: SettingsItem[] = [
         {
             icon: "person-outline",
-            title: "แก้ไขโปรไฟล์",
-            description: "จัดการข้อมูลโปรไฟล์ของคุณ",
-            route: "/(drawer)/(tabs)/settings/edit-profile",
+            title: "Edit Profile",
+            description: "Update your personal information and profile settings",
+            route: "/(drawer)/(main)/settings/edit-profile",
             color: "#7C3AED",
         },
         {
             icon: "lock-closed-outline",
-            title: "เปลี่ยนรหัสผ่าน",
-            description: "อัปเดตรหัสผ่านของคุณ",
-            route: "/(drawer)/(tabs)/settings/change-password",
+            title: "Change Password",
+            description: "Update your account password to keep your account secure",
+            route: "/(drawer)/(main)/settings/change-password",
             color: "#EC4899",
         },
     ];
@@ -97,16 +99,16 @@ export default function SettingsIndex() {
     const privacySettings: SettingsItem[] = [
         {
             icon: "notifications-outline",
-            title: "การแจ้งเตือน",
-            description: "จัดการการแจ้งเตือน",
-            route: "/(drawer)/(tabs)/settings/notification",
+            title: "Notification Settings",
+            description: "Manage your notification preferences",
+            route: "/(drawer)/(main)/settings/notification",
             color: "#F59E0B",
         },
         {
             icon: "shield-outline",
-            title: "ความเป็นส่วนตัว",
-            description: "ควบคุมการตั้งค่าความเป็นส่วนตัว",
-            route: "/(drawer)/(tabs)/settings/privacy",
+            title: "Privacy Settings",
+            description: "Manage your privacy preferences",
+            route: "/(drawer)/(main)/settings/privacy",
             color: "#10B981",
         },
     ];
@@ -158,7 +160,7 @@ export default function SettingsIndex() {
                         ) : null}
                         <View
                             style={{
-                                backgroundColor: "#000000",
+                                backgroundColor: user?.is_online ? "#10B981" : "#EF4444",
                                 paddingHorizontal: 8,
                                 paddingVertical: 4,
                                 borderRadius: 12,
@@ -166,7 +168,7 @@ export default function SettingsIndex() {
                             }}
                         >
                             <Text style={{ fontSize: 11, color: "#f5f5f5", fontWeight: "600" }}>
-                                {user?.is_online ? " ออนไลน์" : " ออฟไลน์"}
+                                {user?.is_online ? "Online" : "Offline"}
                             </Text>
                         </View>
                     </View>
@@ -176,7 +178,7 @@ export default function SettingsIndex() {
             {/* Account Settings Section */}
             <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
                 <Text style={{ fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 12 }}>
-                    บัญชีผู้ใช้
+                    Account Settings
                 </Text>
                 {accountSettings.map((item, index) => (
                     <TouchableOpacity
@@ -224,7 +226,7 @@ export default function SettingsIndex() {
             {/* Privacy & Security Section */}
             <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
                 <Text style={{ fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 12 }}>
-                    ความเป็นส่วนตัวและความปลอดภัย
+                    Privacy & Security
                 </Text>
                 {privacySettings.map((item, index) => (
                     <TouchableOpacity
@@ -272,7 +274,7 @@ export default function SettingsIndex() {
             {/* About Section */}
             <View style={{ paddingHorizontal: 20, marginBottom: 20 }}>
                 <Text style={{ fontSize: 16, fontWeight: "700", color: "#1F2937", marginBottom: 12 }}>
-                    เกี่ยวกับ
+                    About
                 </Text>
                 <TouchableOpacity
                     activeOpacity={0.7}
@@ -305,7 +307,7 @@ export default function SettingsIndex() {
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 15, fontWeight: "600", color: "#1F2937", marginBottom: 2 }}>
-                            เวอร์ชัน
+                            About
                         </Text>
                         <Text style={{ fontSize: 12, color: "#9CA3AF" }}>MyMood v1.0.0</Text>
                     </View>
@@ -334,7 +336,7 @@ export default function SettingsIndex() {
                 >
                     <Ionicons name="log-out-outline" size={22} color="#DC2626" style={{ marginRight: 8 }} />
                     <Text style={{ fontSize: 16, fontWeight: "700", color: "#DC2626" }}>
-                        ออกจากระบบ
+                        Logout
                     </Text>
                 </TouchableOpacity>
             </View>

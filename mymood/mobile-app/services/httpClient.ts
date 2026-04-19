@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase } from '@/lib/supabase';
 import { ERROR_CONFIG } from '@/config/audioConfig';
 
 interface RequestConfig {
@@ -343,5 +343,5 @@ class HTTPClient {
 
 // Initialize singleton
 export const httpClient = new HTTPClient(
-  process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8080'
+  (process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:8080').replace(/\/+$/, '') // Remove trailing slash if present
 );

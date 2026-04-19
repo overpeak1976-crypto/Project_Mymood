@@ -15,9 +15,9 @@ export const playlistService = {
     }));
   },
 
-  async createPlaylist(userId: string, name: string, description?: string) {
+  async createPlaylist(userId: string, name: string, description?: string, coverImageUrl?: string | null) {
     if (!name?.trim()) throw new Error('ชื่อเพลย์ลิสต์ห้ามว่างครับ');
-    return playlistRepository.createPlaylist(userId, name.trim(), description ?? null, null);
+    return playlistRepository.createPlaylist(userId, name.trim(), description ?? null, coverImageUrl ?? null);
   },
 
   async addTrack(userId: string, playlistId: string, songId: string) {

@@ -1,9 +1,9 @@
 import "../global.css";
 import React, { useState } from "react";
-import { Text, View, TextInput, TouchableOpacity, ActivityIndicator, Image } from "react-native";
+import { Text, View, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
-import { useToast } from "../../context/ToastContext";
-import { supabase } from "../../lib/supabase";
+import { useToast } from "@/context/ToastContext";
+import { supabase } from "@/lib/supabase";
 import { makeRedirectUri } from "expo-auth-session";
 import * as WebBrowser from 'expo-web-browser';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
@@ -41,7 +41,7 @@ export default function LoginScreen() {
         }).eq('id', userData.user.id);
       }
       showToast("Login successful!", 'success');
-      router.replace("/(drawer)/(tabs)");
+      router.replace("/(drawer)/(main)/(tabs)" as any);
     }
     setLoading(false);
   };
@@ -87,7 +87,7 @@ export default function LoginScreen() {
               is_online: true,
               last_active: new Date(),
             }).eq('id', user.id);
-            router.replace("/(drawer)/(tabs)");
+            router.replace("/(drawer)/(main)/(tabs)" as any);
           } else {
             router.replace("/(auth)/complete-profile" as any);
           }
@@ -103,11 +103,11 @@ export default function LoginScreen() {
   return (
     <View className="flex-1 bg-[#F5F3FF] px-6 pt-20">
       <TouchableOpacity onPress={() => router.back()} className="mb-6">
-        <Text className="text-purple-600 font-bold text-lg">← Back</Text>
+        <Text className="text-purple-600 font-bold text-lg">Back</Text>
       </TouchableOpacity>
 
       <Text className="text-3xl font-extrabold text-purple-800 mb-2">Welcome Back!</Text>
-      <Text className="text-gray-500 mb-10">ล็อกอินเพื่อดูว่าเพื่อนๆ กำลังฟังเพลงอะไรอยู่</Text>
+      <Text className="text-gray-500 mb-10">Please sign in to continue to your account.</Text>
 
       <View className="mb-6">
         <TextInput
@@ -141,11 +141,11 @@ export default function LoginScreen() {
 
       <View className="flex-row items-center my-6">
         <View className="flex-1 h-[1px] bg-gray-300" />
-        <Text className="mx-4 text-gray-400">หรือ</Text>
+        <Text className="mx-4 text-gray-400">or</Text>
         <View className="flex-1 h-[1px] bg-gray-300" />
       </View>
 
-      {/* ปุ่ม Google Login */}
+      {/* Google Login */}
 
       <TouchableOpacity
         onPress={onGoogleLogin}

@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { playlistService } from '../services/playlistService';
+import { uploadService } from '../services/uploadService';
 
 export const playlistController = {
   async getMyPlaylists(req: AuthRequest, res: Response) {
@@ -15,7 +16,11 @@ export const playlistController = {
   async createPlaylist(req: AuthRequest, res: Response) {
     try {
       const { name, description } = req.body;
-      const playlist = await playlistService.createPlaylist(req.user.id, name, description);
+      let coverImageUrl: string | null = null;
+      if (req.file) {
+        coverImageUrl = await uploadService.uploadImage(req.file.path);
+      }
+      const playlist = await playlistService.createPlaylist(req.user.id, name, description, coverImageUrl);
       res.status(201).json({ message: 'สร้างเพลย์ลิสต์สำเร็จ!', playlist });
     } catch (error: any) {
       const status = error.message.includes('ห้ามว่าง') ? 400 : 500;

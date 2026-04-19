@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Text, View, TextInput, TouchableOpacity, ActivityIndicator, Image, ScrollView } from "react-native";
-import { useToast } from "../../context/ToastContext";
+import { useToast } from "@/context/ToastContext";
 import { useRouter } from "expo-router";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -68,7 +68,7 @@ export default function CompleteProfileScreen() {
 
   const handleCompleteProfile = async () => {
     if (!username || !handle) {
-      showToast("กรุณากรอกชื่อและไอดี", 'info');
+      showToast("กรุณากรอกชื่อผู้ใช้และแฮนด์เดิล", 'info');
       return;
     }
 
@@ -114,7 +114,7 @@ export default function CompleteProfileScreen() {
         .maybeSingle();
 
       if (existingHandle) {
-        showToast("This handle is already taken", 'error');
+        showToast("แฮนด์เดิลนี้ถูกใช้งานแล้ว", 'error');
         setLoading(false);
         return;
       }
@@ -125,13 +125,13 @@ export default function CompleteProfileScreen() {
         try {
           let uploadUri = profileImage;
 
-          // ถ้าเป็น Google URL ใช้ URL ตรงๆ ไม่ต้องดาวน์โหลดมาก่อน
-          // เพราะ FormData ใน RN รับ local uri เท่านั้น
-          // ถ้าเป็น http ให้ข้ามการ upload แล้วใช้ URL นั้นเลย
+          // เธ–เนเธฒเน€เธเนเธ Google URL เนเธเน URL เธ•เธฃเธเน เนเธกเนเธ•เนเธญเธเธ”เธฒเธงเธเนเนเธซเธฅเธ”เธกเธฒเธเนเธญเธ
+          // เน€เธเธฃเธฒเธฐ FormData เนเธ RN เธฃเธฑเธ local uri เน€เธ—เนเธฒเธเธฑเนเธ
+          // เธ–เนเธฒเน€เธเนเธ http เนเธซเนเธเนเธฒเธกเธเธฒเธฃ upload เนเธฅเนเธงเนเธเน URL เธเธฑเนเธเน€เธฅเธข
           if (profileImage.startsWith('http')) {
-            finalImageUrl = profileImage; // ✅ ใช้ Google URL ตรงๆ
+            finalImageUrl = profileImage; // โ… เนเธเน Google URL เธ•เธฃเธเน
           } else {
-            // เป็นไฟล์ในเครื่อง → upload ด้วย FormData
+            // เน€เธเนเธเนเธเธฅเนเนเธเน€เธเธฃเธทเนเธญเธ โ’ upload เธ”เนเธงเธข FormData
             const fileName = `${sessionUser.id}-${Date.now()}.jpg`;
 
             const formData = new FormData();
@@ -162,12 +162,12 @@ export default function CompleteProfileScreen() {
         }
       }
 
-      // ถ้าไม่มีรูป ให้ใช้ UI Avatars
+      // เธ–เนเธฒเนเธกเนเธกเธตเธฃเธนเธ เนเธซเนเนเธเน UI Avatars
       if (!finalImageUrl) {
         finalImageUrl = `https://ui-avatars.com/api/?name=${username}&background=random`;
       }
 
-      // 3. 💾 Upsert ลงตาราง users
+      // 3. ๐’พ Upsert เธฅเธเธ•เธฒเธฃเธฒเธ users
       const { error: dbError } = await supabase.from("users").upsert({
         id: sessionUser.id,
         email: sessionUser.email,
@@ -182,7 +182,7 @@ export default function CompleteProfileScreen() {
 
       if (dbError) throw dbError;
 
-      // 4. อัปเดต Auth Metadata 
+      // 4. เธญเธฑเธเน€เธ”เธ• Auth Metadata 
       const updateData: any = {
         data: {
           picture: finalImageUrl,
@@ -190,18 +190,18 @@ export default function CompleteProfileScreen() {
         }
       };
 
-      // ถ้าเป็น Google Login → ตั้งรหัสผ่านด้วย
+      // เธ–เนเธฒเน€เธเนเธ Google Login โ’ เธ•เธฑเนเธเธฃเธซเธฑเธชเธเนเธฒเธเธ”เนเธงเธข
       if (isGoogleLogin && password) {
         updateData.password = password;
       }
 
       await supabase.auth.updateUser(updateData);
 
-      showToast("Profile created successfully!", 'success');
-      router.replace("/(drawer)/(tabs)");
+      showToast("สร้างโปรไฟล์สำเร็จ!", 'success');
+      router.replace("/(drawer)/(main)/(tabs)" as any);
     } catch (error: any) {
       console.error(error);
-      showToast(`Error: ${error.message}`, 'error');
+      showToast(`เกิดข้อผิดพลาด: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -209,7 +209,7 @@ export default function CompleteProfileScreen() {
 
   return (
     <ScrollView className="flex-1 bg-[#F5F3FF]" contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 96, paddingBottom: 40 }}>
-      <Text className="text-3xl font-extrabold text-purple-800 mb-2">ยินดีต้อนรับ!</Text>
+      <Text className="text-3xl font-extrabold text-purple-800 mb-2">สร้างโปรไฟล์สำเร็จ!</Text>
 
       <View className="items-center mb-8 mt-6">
         <TouchableOpacity
@@ -227,18 +227,18 @@ export default function CompleteProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <Text className="text-gray-700 font-bold mb-2 ml-1">ชื่อที่ใช้แสดง (Username)</Text>
+      <Text className="text-gray-700 font-bold mb-2 ml-1">ชื่อผู้ใช้ (Username)</Text>
       <TextInput
         className="bg-white p-4 rounded-2xl border border-purple-100 mb-4 shadow-sm"
-        placeholder="ชื่อของคุณ"
+        placeholder="กรอกชื่อผู้ใช้ของคุณ"
         value={username}
         onChangeText={setUsername}
       />
 
-      <Text className="text-gray-700 font-bold mb-2 ml-1">ไอดีผู้ใช้ (@Handle)</Text>
+      <Text className="text-gray-700 font-bold mb-2 ml-1">แฮนด์เดิล (@Handle)</Text>
       <TextInput
         className="bg-white p-4 rounded-2xl border border-purple-100 mb-4 shadow-sm text-gray-800 font-medium"
-        placeholder="ไอดี"
+        placeholder="กรอกแฮนด์เดิลของคุณ (เช่น @john_doe)"
         value={handle}
         onChangeText={(text) => setHandle(text.toLowerCase().replace(/[^a-z0-9_.]/g, ""))}
         autoCapitalize="none"
@@ -248,9 +248,9 @@ export default function CompleteProfileScreen() {
         <View className="bg-purple-50 p-4 rounded-2xl border border-purple-200 mb-4">
           <View className="flex-row items-center mb-3">
             <Ionicons name="lock-closed" size={18} color="#7C3AED" />
-            <Text className="text-purple-700 font-bold ml-2">สร้างรหัสผ่าน</Text>
+            <Text className="text-purple-700 font-bold ml-2">รหัสผ่าน</Text>
           </View>
-          <Text className="text-gray-500 text-xs mb-3">คุณเข้าสู่ระบบด้วย Google — กรุณาตั้งรหัสผ่านเพื่อเข้าใช้แอป{'\n'}(ตัวพิมพ์ใหญ่ + ตัวพิมพ์เล็ก + ตัวเลข อย่างน้อย 8 ตัว)</Text>
+          <Text className="text-gray-500 text-xs mb-3">รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร และประกอบด้วยตัวอักษรตัวพิมพ์ใหญ่ ตัวพิมพ์เล็ก ตัวเลข และสัญลักษณ์พิเศษ</Text>
 
           <Text className="text-gray-700 font-semibold mb-1 ml-1">รหัสผ่าน</Text>
           <View className="mb-3">
@@ -259,7 +259,7 @@ export default function CompleteProfileScreen() {
               secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
-              placeholder="อย่างน้อย 8 ตัวอักษร"
+              placeholder="กรอกรหัสผ่านของคุณ (อย่างน้อย 8 ตัวอักษร)"
               autoComplete="new-password"
             />
             <TouchableOpacity
@@ -277,7 +277,7 @@ export default function CompleteProfileScreen() {
               secureTextEntry={!showConfirm}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              placeholder="กรอกรหัสผ่านอีกครั้ง"
+              placeholder="กรอกยืนยันรหัสผ่านของคุณ"
               autoComplete="new-password"
             />
             <TouchableOpacity
@@ -295,7 +295,7 @@ export default function CompleteProfileScreen() {
         disabled={loading}
         className={`py-4 rounded-2xl items-center shadow-md ${loading ? 'bg-purple-300' : 'bg-purple-600'}`}
       >
-        {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-lg font-bold">เริ่มต้นใช้งาน</Text>}
+        {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-white text-lg font-bold">เสร็จสิ้นโปรไฟล์</Text>}
       </TouchableOpacity>
     </ScrollView>
   );

@@ -1,16 +1,16 @@
 import "./global.css";
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Image, TouchableOpacity, Dimensions, ActivityIndicator, Animated, Easing } from 'react-native';
-import { ChevronDown, MoreVertical, Shuffle, SkipBack, Play, Pause, SkipForward, Repeat, Repeat1, Airplay, Share2 } from 'lucide-react-native';
+import { View, Text, Image, TouchableOpacity, Dimensions, Animated, Easing } from 'react-native';
+import { ChevronDown, MoreVertical, Shuffle, SkipBack, Play, Pause, SkipForward, Repeat, Airplay, Share2 } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import BottomSheet from '@gorhom/bottom-sheet';
-import UpNextSheet from '../components/UpNextSheet';
-import SongContextMenu from '../components/SongContextMenu';
-import FriendPickerSheet from '../components/FriendPickerSheet';
-import PlayerProgressBar from '../components/PlayerProgressBar';
-import { useAudio } from '../context/AudioContext';
-import { useToast } from '../context/ToastContext';
+import UpNextSheet from '@/components/UpNextSheet';
+import SongContextMenu from '@/components/SongContextMenu';
+import FriendPickerSheet from '@/components/FriendPickerSheet';
+import PlayerProgressBar from '@/components/PlayerProgressBar';
+import { useAudio } from '@/context/AudioContext';
+import { useToast } from '@/context/ToastContext';
 const { width, height } = Dimensions.get('window');
 const ModernSpinner = ({ size = 24, color = "#7C3AED" }) => {
   const spinValue = useRef(new Animated.Value(0)).current;
@@ -121,7 +121,7 @@ export default function PlayerScreen() {
   return (
     <View className="flex-1 bg-black">
 
-      {/* พื้นหลัง */}
+      {/* Background */}
       <Animated.Image
         key={`bg-${currentSong.id}`}
         source={{ uri: currentSong.cover_image_url }}
@@ -152,12 +152,12 @@ export default function PlayerScreen() {
 
         {/* --- Artwork Section --- */}
         <View className="items-center my-8 shadow-2xl shadow-black/50 justify-center relative">
-          {/* กรอบเงาดำรองรับรูปภาพ */}
+          {/* Artwork Frame */}
           <View
             style={{ width: width * 0.8, height: width * 0.8 }}
             className="rounded-[40px] bg-gray-800/80 shadow-2xl items-center justify-center overflow-hidden"
           >
-            {/* โชว์รูปภาพ */}
+            {/* Artwork Image */}
             <Image
               key={`artwork-${currentSong.id}`}
               source={{ uri: currentSong.cover_image_url }}
@@ -167,7 +167,7 @@ export default function PlayerScreen() {
               onError={() => setIsImageLoading(false)}
             />
 
-            {/* โชว์ Loading Spinner ถ้าเน็ตช้ารูปยังไม่มา */}
+            {/* Loading Spinner */}
             {isImageLoading && (
               <View className="absolute inset-0 bg-gray-900/40 items-center justify-center rounded-[40px]">
                 <ModernSpinner color="#FFF" size={50} />

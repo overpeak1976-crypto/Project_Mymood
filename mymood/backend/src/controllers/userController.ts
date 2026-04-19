@@ -65,8 +65,8 @@ export const userController = {
   async updateMyProfile(req: AuthRequest, res: Response) {
     try {
       const myId = req.user.id;
-      const { username, handle, bio, link, profile_image_url, banner_image_url, current_playing_song_id } = req.body;
-      const profile = await userService.uploadsData(myId, { username, handle, bio, link, profile_image_url, banner_image_url, current_playing_song_id });
+      const { username, handle, bio, link, profile_image_url, banner_image_url, profile_song_id } = req.body;
+      const profile = await userService.uploadsData(myId, { username, handle, bio, link, profile_image_url, banner_image_url, profile_song_id });
       res.status(200).json(profile);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

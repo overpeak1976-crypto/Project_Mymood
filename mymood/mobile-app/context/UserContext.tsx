@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { httpClient } from '../lib/httpClient';
+import { httpClient } from '@/services/httpClient';
 import { Song } from './AudioContext';
 
 interface UserProfile {

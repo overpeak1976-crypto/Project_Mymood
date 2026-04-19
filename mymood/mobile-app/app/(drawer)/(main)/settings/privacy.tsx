@@ -1,7 +1,7 @@
 import { View, Text, Switch, ActivityIndicator } from "react-native";
 import React, { useState, useEffect } from "react";
-import { httpClient } from "../../../../lib/httpClient";
-import { useToast } from "../../../../context/ToastContext";
+import { httpClient } from "@/services/httpClient";
+import { useToast } from "@/context/ToastContext";
 
 export default function Privacy() {
     const { showToast } = useToast();
@@ -66,10 +66,10 @@ export default function Privacy() {
                 <View className="flex-row items-start">
                     <View className="flex-1 pr-3">
                         <Text className="text-lg font-bold text-gray-900 mb-1">
-                            สถานะกิจกรรม
+                            Activity Notifications
                         </Text>
                         <Text className="text-sm text-gray-500 leading-5">
-                            เมื่อเปิดการตั้งค่านี้ เพื่อนของคุณจะเห็นว่าคุณกำลังฟังเพลงอะไรอยู่ในหน้าแรก ถ้าปิดจะไม่แสดง
+                            Receive notifications when friends interact with your music
                         </Text>
                     </View>
                     <Switch
@@ -86,10 +86,10 @@ export default function Privacy() {
                 <View className="flex-row items-start">
                     <View className="flex-1 pr-3">
                         <Text className="text-lg font-bold text-gray-900 mb-1">
-                            เพลงที่อัพโหลด
+                            Uploaded Songs
                         </Text>
                         <Text className="text-sm text-gray-500 leading-5">
-                            เมื่อเปิดการตั้งค่านี้ เพื่อนจะเห็นเพลงที่คุณอัพโหลดเมื่อดูโปรไฟล์ของคุณ ถ้าปิดจะซ่อนแท็บเพลงที่อัพโหลด
+                            Receive notifications when friends interact with your uploaded songs
                         </Text>
                     </View>
                     <Switch

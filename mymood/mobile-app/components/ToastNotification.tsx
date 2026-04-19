@@ -5,7 +5,6 @@ import {
   Animated,
   Easing,
   StyleSheet,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react-native';

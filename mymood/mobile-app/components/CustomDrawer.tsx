@@ -8,13 +8,13 @@ export default function CustomDrawer(props: any) {
     const router = useRouter();
 
     const menu = [
-        { label: "Home", route: "/(tabs)", icon: "home-outline" },
-        { label: "AI search", route: "/(tabs)/AIsearch", icon: "search-outline" },
-        { label: "Upload", route: "/(tabs)/upload", icon: "cloud-upload-outline" },
-        { label: "Library", route: "/(tabs)/library", icon: "library-outline" },
-        { label: "Friends", route: "/(tabs)/friends", icon: "people-outline" },
-        { label: "Inbox", route: "/(tabs)/Inbox", icon: "mail-outline" },
-        { label: "Settings", route: "/(tabs)/settings", icon: "settings-outline" },
+        { label: "Home", route: "/(drawer)/(main)/(tabs)", icon: "home-outline" },
+        { label: "AI search", route: "/(drawer)/(main)/search", icon: "search-outline" },
+        { label: "Upload", route: "/(drawer)/(main)/(tabs)/upload", icon: "cloud-upload-outline" },
+        { label: "Library", route: "/(drawer)/(main)/(tabs)/library", icon: "library-outline" },
+        { label: "Friends", route: "/(drawer)/(main)/friends", icon: "people-outline" },
+        { label: "Inbox", route: "/(drawer)/(main)/(tabs)/inbox", icon: "mail-outline" },
+        { label: "Settings", route: "/(drawer)/(main)/settings", icon: "settings-outline" },
     ];
 
     return (
@@ -61,7 +61,10 @@ export default function CustomDrawer(props: any) {
                 {menu.map((item, index) => (
                     <TouchableOpacity
                         key={index}
-                        onPress={() => router.navigate(item.route as any)}
+                        onPress={() => {
+                            props.navigation.closeDrawer();
+                            router.navigate(item.route as any);
+                        }}
                         style={{
                             flexDirection: "row",
                             alignItems: "center",

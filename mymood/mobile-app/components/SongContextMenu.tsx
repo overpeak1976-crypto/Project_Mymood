@@ -3,7 +3,7 @@ import {
   StyleSheet, ActivityIndicator,
 } from "react-native";
 import { Heart, ListPlus, Share2, ChevronLeft, ListMusic } from "lucide-react-native";
-import { httpClient } from "../lib/httpClient";
+import { httpClient } from "@/services/httpClient";
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { BlurView } from 'expo-blur';
@@ -107,7 +107,7 @@ export default function SongContextMenu({
       ref={sheetRef}
       // ปิด Dynamic Sizing เพื่อให้ Scroll ทำงานได้ 100%
       enableDynamicSizing={false} 
-      // เพิ่มระยะให้ยืดจอได้กว้างขึ้นเวลาดูเพลย์ลิสต์
+      // ปรับความสูงของ Bottom Sheet ตามโหมด (ปกติ vs เลือกเพลย์ลิสต์)
       snapPoints={useMemo(() => showPlaylistSelector ? ['90%'] : ['45%'], [showPlaylistSelector])}
       enablePanDownToClose={true}
       onClose={handleClose}
@@ -121,7 +121,7 @@ export default function SongContextMenu({
       handleIndicatorStyle={{ backgroundColor: "#D1D5DB", width: 40, height: 4, marginTop: 10 }}
       index={-1}
     >
-      {/* เปลี่ยนจาก BottomSheetView เป็น BottomSheetScrollView คลุมทั้งหมด */}
+      {/* ใช้ BottomSheetScrollView แทน BottomSheetView เพื่อให้ Scroll ทำงานได้ */}
       <BottomSheetScrollView 
         contentContainerStyle={styles.sheet}
         showsVerticalScrollIndicator={false}
@@ -137,7 +137,7 @@ export default function SongContextMenu({
               </View>
             </View>
 
-            {/* ── View: Options ── */}
+            {/* Options */}
             {!showPlaylistSelector && (
               <>
                 <TouchableOpacity style={styles.menuRow} onPress={handleToggleLike}>
@@ -167,7 +167,7 @@ export default function SongContextMenu({
               </>
             )}
 
-            {/* ── View: Playlist Selector ── */}
+            {/* โ”€โ”€ View: Playlist Selector โ”€โ”€ */}
             {showPlaylistSelector && (
               <>
                 <TouchableOpacity
@@ -186,7 +186,7 @@ export default function SongContextMenu({
                   <View>
                     {playlists.length === 0 ? (
                       <Text style={{ color: "#9CA3AF", textAlign: "center", paddingVertical: 20 }}>
-                        ยังไม่มีเพลย์ลิสต์ครับ
+                        No playlists available. Create one to add this song!
                       </Text>
                     ) : (
                       playlists.map((pl) => (
@@ -205,7 +205,7 @@ export default function SongContextMenu({
                           )}
                           <View style={{ flex: 1, marginLeft: 12 }}>
                             <Text style={styles.menuLabel} numberOfLines={1}>{pl.name}</Text>
-                            <Text style={styles.songArtist}>{pl.track_count} เพลง</Text>
+                            <Text style={styles.songArtist}>{pl.track_count} tracks</Text>
                           </View>
                           {isAddingTrack && <ActivityIndicator size="small" color="#7C3AED" />}
                         </TouchableOpacity>
@@ -231,7 +231,7 @@ export default function SongContextMenu({
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// Styles
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet: {

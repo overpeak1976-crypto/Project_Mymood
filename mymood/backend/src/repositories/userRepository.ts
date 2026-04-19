@@ -38,11 +38,11 @@ export const userRepository = {
   async profileData(userId: string) {
     return prisma.users.findUnique({
       where: { id: userId },
-      select: { id: true, username: true, handle: true, profile_image_url: true, banner_image_url: true, link: true, bio: true, current_playing_song_id: true, show_activity_status: true, show_uploads: true },
+      select: { id: true, username: true, handle: true, profile_image_url: true, banner_image_url: true, link: true, bio: true, profile_song_id: true, show_activity_status: true, show_uploads: true, songs_users_profile_song_idTosongs: { select: { id: true, title: true, artist: true, cover_image_url: true, audio_file_url: true } } },
     });
   },
 
-  async uploadsData(userId: string, data: { username?: string; handle?: string; bio?: string; link?: string; profile_image_url?: string; banner_image_url?: string, current_playing_song_id?: string }) {
+  async uploadsData(userId: string, data: { username?: string; handle?: string; bio?: string; link?: string; profile_image_url?: string; banner_image_url?: string, profile_song_id?: string }) {
     return prisma.users.update({
       where: { id: userId },
       data,
@@ -75,10 +75,10 @@ export const userRepository = {
         banner_image_url: true,
         bio: true,
         link: true,
-        current_playing_song_id: true,
+        profile_song_id: true,
         show_activity_status: true,
         show_uploads: true,
-        songs_users_current_playing_song_idTosongs: {
+        songs_users_profile_song_idTosongs: {
           select: { id: true, title: true, artist: true, cover_image_url: true, audio_file_url: true },
         },
       },

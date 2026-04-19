@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { httpClient } from '@/lib/httpClient';
+import { httpClient } from '@/services/httpClient';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
 import { useQueueManager } from '@/hooks/useQueueManager';
 import { usePlayHistory } from '@/hooks/usePlayHistory';
@@ -121,7 +121,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('[AudioContext] refillAiRadio failed:', error);
-      // Don't set exhausted on error — will retry on next track change
+      // Don't set exhausted on error โ€” will retry on next track change
     } finally {
       isRefillingRef.current = false;
     }
@@ -182,10 +182,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         currentPlayingRef.current = null;
         console.log('[AudioContext] playSong SUCCESS - will release lock in finally');
 
-        // Update current_playing_song_id in database
+        // Update profile_song_id in database
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (session?.user?.id) {
-            supabase.from('users').update({ current_playing_song_id: song.id }).eq('id', session.user.id).then(() => {});
+            supabase.from('users').update({ profile_song_id: song.id }).eq('id', session.user.id).then(() => {});
           }
         });
       } catch (error) {
@@ -330,10 +330,10 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
       stopAiRadio();
       currentPlayingRef.current = null;
       lastHandledEndPositionRef.current = 0;
-      // Clear current_playing_song_id in database
+      // Clear current_song_id in database
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user?.id) {
-          supabase.from('users').update({ current_playing_song_id: null }).eq('id', session.user.id).then(() => {});
+          supabase.from('users').update({ current_song_id: null }).eq('id', session.user.id).then(() => {});
         }
       });
       console.log('[AudioContext] Audio stopped and reset');
@@ -389,7 +389,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
   // This runs on every engine state change WITHOUT causing React re-renders.
   useEffect(() => {
     const unsub = audioEngineSingleton.subscribe((engineState) => {
-      // ── Song-end detection (NOT throttled — must react immediately) ──
+      // โ”€โ”€ Song-end detection (NOT throttled โ€” must react immediately) โ”€โ”€
       if (!engineState.isLoading && engineState.duration > 0 && !isTransitioningRef.current && currentSongRef.current) {
         // Primary: use didJustFinish from expo-av (most reliable)
         // Fallback: position-based check for edge cases
@@ -411,7 +411,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // ── Play history recording (throttled) ──
+      // โ”€โ”€ Play history recording (throttled) โ”€โ”€
       const now = Date.now();
       if (now - lastPositionCheckRef.current >= 800) {
         lastPositionCheckRef.current = now;
@@ -434,7 +434,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     }
   }, [queueMgr.state.currentIndex, activeAiPrompt, isAiExhausted, refillAiRadio]);
 
-  // ── Memoized stable context value (does NOT include position/progress) ──
+  // โ”€โ”€ Memoized stable context value (does NOT include position/progress) โ”€โ”€
   const stableValue = useMemo<AudioContextType>(() => ({
     currentSong,
     isPlaying: audioEngine.state.isPlaying,
@@ -465,7 +465,7 @@ export function AudioProvider({ children }: { children: React.ReactNode }) {
     toggleShuffle, toggleRepeat, activeAiPrompt, isAiGenerating, startAiRadio, stopAiRadio, stopAndReset, volume, setVolume,
   ]);
 
-  // ── Memoized progress context value (changes on position updates) ──
+  // โ”€โ”€ Memoized progress context value (changes on position updates) โ”€โ”€
   const progressValue = useMemo<AudioProgressContextType>(() => ({
     currentTime: audioEngine.state.position,
     totalDuration: audioEngine.state.duration,

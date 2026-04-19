@@ -1,9 +1,19 @@
 import prisma from '../config/prisma';
 
 export const playRepository = {
-  async insertPlayHistory(userId: string, songId: string) {
+  async insertPlayHistory(userId: string, songId: string, playedAt?: Date, durationMs?: number, positionMs?: number) {
     return prisma.play_history.create({
-      data: { user_id: userId, song_id: songId },
+      data: {
+        user_id: userId,
+        song_id: songId,
+        played_at: playedAt
+      },
+    });
+  },
+  async updateCurrentPlayingSongId(userId: string, songId: string) {
+    return prisma.users.update({
+      where: { id: userId },
+      data: { current_playing_song_id: songId },
     });
   },
 

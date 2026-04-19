@@ -5,15 +5,14 @@ import {
     StyleSheet, Alert, RefreshControl, Animated,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Play, Shuffle, Trash2, ListMusic, Clock, Music, MoreVertical, Pause } from "lucide-react-native";
+import { ArrowLeft, Play, Shuffle, Trash2, Music, MoreVertical, Pause } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
-import MiniPlayer from "../../../../components/MiniPlayer";
-import SongContextMenu, { SongMenuItem } from "../../../../components/SongContextMenu";
-import { httpClient } from "../../../../lib/httpClient";
-import { useAudio } from "../../../../context/AudioContext";
-import { useUser } from "../../../../context/UserContext";
-import { useToast } from "../../../../context/ToastContext";
+import MiniPlayer from "@/components/MiniPlayer";
+import SongContextMenu, { SongMenuItem } from "@/components/SongContextMenu";
+import { httpClient } from "@/services/httpClient";
+import { useAudio } from "@/context/AudioContext";
+import { useUser } from "@/context/UserContext";
+import { useToast } from "@/context/ToastContext";
 import { Heart } from "lucide-react-native";
 
 type Track = SongMenuItem & {
@@ -47,8 +46,8 @@ function formatTotalDuration(tracks: Track[]): string {
     if (total <= 0) return "";
     const hrs = Math.floor(total / 3600);
     const mins = Math.floor((total % 3600) / 60);
-    if (hrs > 0) return `${hrs} ชม. ${mins} นาที`;
-    return `${mins} นาที`;
+    if (hrs > 0) return `${hrs} h. ${mins} m.`;
+    return `${mins} m.`;
 }
 
 export default function PlaylistDetailScreen() {
@@ -118,12 +117,12 @@ export default function PlaylistDetailScreen() {
 
     const handleRemoveTrack = (track: Track) => {
         Alert.alert(
-            "ลบเพลง",
-            `ลบ "${track.title}" ออกจากเพลย์ลิสต์?`,
+            "Remove Track",
+            `Remove "${track.title}" from the playlist?`,
             [
-                { text: "ยกเลิก", style: "cancel" },
+                { text: "Cancel", style: "cancel" },
                 {
-                    text: "ลบ", style: "destructive", onPress: async () => {
+                    text: "Remove", style: "destructive", onPress: async () => {
                         try {
                             await httpClient.delete(`/api/playlists/${id}/tracks/${track.track_id}`);
                             setPlaylist(prev => {
@@ -131,9 +130,9 @@ export default function PlaylistDetailScreen() {
                                 const tracks = prev.tracks.filter(t => t.track_id !== track.track_id);
                                 return { ...prev, tracks, track_count: tracks.length };
                             });
-                            showToast("ลบเพลงออกจากเพลย์ลิสต์แล้ว", "success");
+                            showToast("Track removed from playlist", "success");
                         } catch (err) {
-                            showToast("ลบเพลงไม่สำเร็จ", "error");
+                            showToast("Failed to remove track", "error");
                         }
                     }
                 },
@@ -143,18 +142,18 @@ export default function PlaylistDetailScreen() {
 
     const handleDeletePlaylist = () => {
         Alert.alert(
-            "ลบเพลย์ลิสต์",
-            `ลบ "${playlist?.name}" ทั้งหมด?`,
+            "Delete Playlist",
+            `Delete "${playlist?.name}" entirely?`,
             [
-                { text: "ยกเลิก", style: "cancel" },
+                { text: "Cancel", style: "cancel" },
                 {
-                    text: "ลบ", style: "destructive", onPress: async () => {
+                    text: "Delete", style: "destructive", onPress: async () => {
                         try {
                             await httpClient.delete(`/api/playlists/${id}`);
-                            showToast("ลบเพลย์ลิสต์สำเร็จ", "success");
+                            showToast("Playlist deleted successfully", "success");
                             router.back();
                         } catch (err) {
-                            showToast("ลบเพลย์ลิสต์ไม่สำเร็จ", "error");
+                            showToast("Failed to delete playlist", "error");
                         }
                     }
                 },
@@ -173,9 +172,9 @@ export default function PlaylistDetailScreen() {
     if (!playlist) {
         return (
             <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F5F3FF" }}>
-                <Text style={{ color: "#9CA3AF", fontSize: 16 }}>ไม่พบเพลย์ลิสต์</Text>
+                <Text style={{ color: "#9CA3AF", fontSize: 16 }}>Playlist not found</Text>
                 <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16 }}>
-                    <Text style={{ color: "#7C3AED", fontWeight: "700" }}>← กลับ</Text>
+                    <Text style={{ color: "#7C3AED", fontWeight: "700" }}>← Back</Text>
                 </TouchableOpacity>
             </View>
         );
@@ -200,22 +199,29 @@ export default function PlaylistDetailScreen() {
                     <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.35)" }]} />
 
                     {/* Back button */}
-                    <View style={styles.heroTopRow}>
-                        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                            <ArrowLeft color="#fff" size={22} />
-                        </TouchableOpacity>
+                    
+                      
                         <TouchableOpacity onPress={handleDeletePlaylist} style={styles.backBtn}>
                             <Trash2 color="#fff" size={20} />
                         </TouchableOpacity>
-                    </View>
+                    
+                    
 
                     {/* Cover */}
                     <View style={styles.heroCoverShadow}>
                         {coverUrl ? (
                             <Image source={{ uri: coverUrl }} style={styles.heroCover} />
                         ) : (
-                            <View style={[styles.heroCover, { backgroundColor: "#EDE9FE", justifyContent: "center", alignItems: "center" }]}>
-                                <ListMusic color="#7C3AED" size={60} />
+                            <View style={[styles.heroCover, { overflow: "hidden" }]}>
+                                <LinearGradient
+                                    colors={["#7C3AED", "#A855F7", "#E9D5FF"]}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                    style={StyleSheet.absoluteFillObject}
+                                />
+                                <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.35)" }}>
+                                    <Music color="#fff" size={36} />
+                                </View>
                             </View>
                         )}
                     </View>
@@ -269,8 +275,8 @@ export default function PlaylistDetailScreen() {
                     {playlist.tracks.length === 0 ? (
                         <View style={styles.emptyCard}>
                             <Music color="#D8B4FE" size={40} />
-                            <Text style={styles.emptyText}>ยังไม่มีเพลงในเพลย์ลิสต์นี้</Text>
-                            <Text style={styles.emptySubText}>เพิ่มเพลงจากหน้าค้นหาหรือกดค้างที่เพลง</Text>
+                            <Text style={styles.emptyText}>No tracks in this playlist</Text>
+                            <Text style={styles.emptySubText}>Add tracks from the search page or long press on a track</Text>
                         </View>
                     ) : (
                         playlist.tracks.map((track, index) => {
@@ -369,16 +375,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         overflow: "hidden",
     },
-    heroTopRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        width: "100%",
-        marginBottom: 20,
-    },
+    
     backBtn: {
-        width: 40, height: 40, borderRadius: 20,
+        width: 40, height: 40, borderRadius: 20, padding: 10,
+        position: "absolute", top: 24, right: 24,
+
         backgroundColor: "rgba(255,255,255,0.2)",
-        justifyContent: "center", alignItems: "center",
+         alignItems: "center", justifyContent: "center",    
     },
     heroCoverShadow: {
         shadowColor: "#000",

@@ -13,10 +13,10 @@ export default function Notification() {
                 <View className="flex-row items-start">
                     <View className="flex-1 pr-3">
                         <Text className="text-lg font-bold text-gray-900 mb-1">
-                            แจ้งเตือนทั่วไป
+                            General Notifications
                         </Text>
                         <Text className="text-sm text-gray-500 leading-5">
-                            รับการแจ้งเตือนทั่วไปและเพลงใหม่ทั้งหมดแบบอัตโนมัติ
+                            Receive general notifications and all new music automatically
                         </Text>
                     </View>
                     <Switch
@@ -33,10 +33,10 @@ export default function Notification() {
                     <View className="flex-row items-start">
                         <View className="flex-1 pr-3">
                             <Text className="text-lg font-bold text-gray-900 mb-1">
-                                แจ้งเตือนกิจกรรม
+                                Activity Notifications
                             </Text>
                             <Text className="text-sm text-gray-500 leading-5">
-                                รับการแจ้งเตือนเมื่อเพื่อนมีการเคลื่อนไหวเกี่ยวกับเพลง
+                                Receive notifications when friends interact with your music
                             </Text>
                         </View>
                         <Switch

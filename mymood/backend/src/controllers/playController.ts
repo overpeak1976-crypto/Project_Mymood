@@ -6,7 +6,15 @@ export const playController = {
   async recordPlay(req: AuthRequest, res: Response) {
     try {
       const song_id = req.params.song_id as string;
-      const result = await playService.recordPlay(req.user.id, song_id);
+      const { playedAt, durationMs, positionMs } = req.body;
+      const playedAtDate = playedAt ? new Date(playedAt) : undefined;
+      const result = await playService.recordPlay(
+        req.user.id,
+        song_id,
+        playedAtDate,
+        durationMs,
+        positionMs
+      );
       res.status(200).json({
         message: 'บันทึกประวัติและบวกยอดวิวสำเร็จ!',
         current_views: result.current_views,

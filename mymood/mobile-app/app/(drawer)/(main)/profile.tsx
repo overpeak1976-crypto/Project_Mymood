@@ -1,12 +1,14 @@
-import { View, Text, Image, TouchableOpacity, ActivityIndicator, ScrollView, Linking, FlatList } from "react-native";
+import { View, Text, Image, TouchableOpacity, ScrollView, Linking, StyleSheet } from "react-native";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
 import React, { useState, useCallback } from "react";
-import { httpClient } from "../../../lib/httpClient";
+import { httpClient } from "@/services/httpClient";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { useAudio } from "../../../context/AudioContext";
-import MiniPlayer from "../../../components/MiniPlayer";
-import ProfileMenuSheet from "../../../components/ProfileMenuSheet";
-import { MoreVertical, Play } from "lucide-react-native";
+import { useAudio } from "@/context/AudioContext";
+import MiniPlayer from "@/components/MiniPlayer";
+import ProfileMenuSheet from "@/components/ProfileMenuSheet";
+import { MoreVertical, Play, Music } from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 interface Playlist {
   id: string;
@@ -75,8 +77,30 @@ export default function Profile() {
 
     if (loading || !profile) {
         return (
-            <View className="flex-1 justify-center items-center bg-white">
-                <ActivityIndicator color="#7C3AED" />
+            <View className="flex-1 bg-white">
+                <SkeletonLoader width="100%" height={160} borderRadius={0} />
+                <View className="px-5">
+                    <View className="flex-row items-end -mt-10 mb-4">
+                        <SkeletonLoader width={112} height={112} borderRadius={56} />
+                        <View className="ml-4 pb-2 flex-1">
+                            <SkeletonLoader width="70%" height={28} className="mb-2" />
+                            <SkeletonLoader width="40%" height={14} />
+                        </View>
+                    </View>
+                    <SkeletonLoader width="90%" height={14} className="mb-2" />
+                    <SkeletonLoader width="60%" height={14} className="mb-6" />
+                    <View className="flex-row justify-around mb-6">
+                        <SkeletonLoader width={60} height={40} borderRadius={12} />
+                        <SkeletonLoader width={60} height={40} borderRadius={12} />
+                        <SkeletonLoader width={60} height={40} borderRadius={12} />
+                    </View>
+                    <SkeletonLoader width="100%" height={80} borderRadius={16} className="mb-4" />
+                    <SkeletonLoader width="50%" height={20} className="mb-3" />
+                    <View className="flex-row" style={{ gap: 12 }}>
+                        <SkeletonLoader width={140} height={140} borderRadius={16} />
+                        <SkeletonLoader width={140} height={140} borderRadius={16} />
+                    </View>
+                </View>
             </View>
         );
     }
@@ -93,10 +117,10 @@ export default function Profile() {
                 />
 
                 <View className="px-5">
-                    {/* 🔥 2. PROFILE HEADER (รูปซ้อน Banner + ชื่อ + ปุ่ม 3 จุด) */}
+                    {/* PROFILE HEADER */}
                     <View className="flex-row items-end justify-between -mt-10 mb-4">
                         <View className="flex-row items-end flex-1">
-                            {/* รูปโปรไฟล์มีกรอบสีขาว */}
+                            {/* Profile image with white border */}
                             <Image
                                 source={{
                                     uri: profile.profile_image_url || "https://placehold.co/150",
@@ -116,7 +140,7 @@ export default function Profile() {
                             </View>
                         </View>
 
-                        {/* ปุ่ม 3 จุด — เปิด ProfileMenuSheet */}
+                        {/* Three-dot button — Open ProfileMenuSheet */}
                         <TouchableOpacity
                             className="pb-4 pl-2"
                             onPress={() => setMenuVisible(true)}
@@ -125,7 +149,7 @@ export default function Profile() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* 🔥 3. BIO & LINK (เผื่อไว้ให้ครับ ถ้าไม่ใช้ลบทิ้งได้) */}
+                    {/* BIO & LINK */}
                     {profile.bio && (
                         <Text className="text-gray-700 text-base mb-2 leading-5">
                             {profile.bio}
@@ -146,7 +170,7 @@ export default function Profile() {
                         </TouchableOpacity>
                     )}
 
-                    {/* 🔥 4. CURRENT PLAYING SONG (ดีไซน์มินิมอลแบบในรูป) */}
+                    {/* CURRENT PLAYING SONG */}
                     {profile.song && (
                         <TouchableOpacity
                             onPress={() => {
@@ -171,7 +195,7 @@ export default function Profile() {
                         </TouchableOpacity>
                     )}
 
-                    {/* 5. PLAYLIST SECTION (Real Data) */}
+                    {/* PLAYLIST SECTION */}
                     <Text className="text-2xl font-extrabold text-[#111827] mb-4">Playlist</Text>
                     
                     {playlists.length === 0 ? (
@@ -180,12 +204,37 @@ export default function Profile() {
                         </View>
                     ) : (
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-8 -mx-5 px-5">
-                            {playlists.map((playlist) => (
-                                <TouchableOpacity key={playlist.id} className="mr-4 w-28 items-center" onPress={() => router.push(`/(drawer)/(tabs)/playlist/${playlist.id}`)}>
-                                    <Image 
-                                        source={{ uri: playlist.cover_image_url || "https://placehold.co/200/7c3aed/ffffff?text=Playlist" }} 
-                                        className="w-28 h-28 rounded-2xl mb-2 bg-gray-200" 
-                                    />
+                            {playlists.map((playlist, idx) => (
+                                <TouchableOpacity
+                                    key={playlist.id}
+                                    className="mr-4 w-28 items-center"
+                                    onPress={() => router.push({ pathname: "/(drawer)/(main)/playlist/[id]", params: { id: playlist.id } })}
+                                >
+                                    {playlist.cover_image_url ? (
+                                        <Image 
+                                            source={{ uri: playlist.cover_image_url }} 
+                                            className="w-28 h-28 rounded-2xl mb-2 bg-gray-200" 
+                                        />
+                                    ) : (
+                                        <View className="w-28 h-28 rounded-2xl mb-2 overflow-hidden">
+                                            <LinearGradient
+                                                colors={[
+                                                    ['#7C3AED', '#A855F7', '#E9D5FF'],
+                                                    ['#6366F1', '#818CF8', '#C7D2FE'],
+                                                    ['#8B5CF6', '#C084FC', '#F5D0FE'],
+                                                    ['#7C3AED', '#EC4899', '#FDE68A'],
+                                                ][idx % 4] as [string, string, string]}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 1 }}
+                                                style={StyleSheet.absoluteFillObject}
+                                            />
+                                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)' }}>
+                                                    <Music color="#fff" size={24} />
+                                                </View>
+                                            </View>
+                                        </View>
+                                    )}
                                     <Text className="font-semibold text-xs text-[#111827] text-center" numberOfLines={2}>
                                         {playlist.name}
                                     </Text>
@@ -199,7 +248,7 @@ export default function Profile() {
                         </ScrollView>
                     )}
 
-                    {/* 6. UPLOAD SECTION (Real Data) */}
+                    {/* UPLOAD SECTION */}
                     <Text className="text-2xl font-extrabold text-[#111827] mb-4">Upload</Text>
                     
                     {uploadedSongs.length === 0 ? (

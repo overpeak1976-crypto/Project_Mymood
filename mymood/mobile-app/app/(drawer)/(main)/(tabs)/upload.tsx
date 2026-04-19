@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, Image, ActivityIndicator } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { httpClient } from '../../../lib/httpClient';
-import { UploadCloud, Image as ImageIcon, Music, CheckCircle, BrainCircuit, Database, Layers3, ArrowUpCircle, CloudUpload, LoaderCircle } from 'lucide-react-native';
-import { useToast } from '../../../context/ToastContext';
-import MiniPlayer from '../../../components/MiniPlayer';
+import { httpClient } from '@/services/httpClient';
+import { UploadCloud, Music, CheckCircle, BrainCircuit, Database, Layers3, ArrowUpCircle, CloudUpload } from 'lucide-react-native';
+import { useToast } from '@/context/ToastContext';
+import MiniPlayer from '@/components/MiniPlayer';
 import { useRouter } from 'expo-router';
 
 export default function UploadScreen() {
@@ -18,27 +18,27 @@ export default function UploadScreen() {
     const [uploadStep, setUploadStep] = useState(-1);
     const processingSteps = [
         {
-            text: "กำลังส่งไฟล์เข้าเซิร์ฟเวอร์...",
+            text: "Uploading your song...",
             icon: (color: string) => <ArrowUpCircle color={color} size={24} />
         },
         {
-            text: "กำลังอัปโหลดรูปและเสียงขึ้นคลาวด์...",
+            text: "Analyzing and understanding the song content...",
             icon: (color: string) => <CloudUpload color={color} size={24} />
         },
         {
-            text: "AI กำลังฟังและวิเคราะห์แนวเพลง...",
+            text: "AI is processing the song...",
             icon: (color: string) => <BrainCircuit color={color} size={24} />
         },
         {
-            text: "กำลังแปลงความหมาย (Vector)...",
+            text: "Converting meaning (Vector)...",
             icon: (color: string) => <Layers3 color={color} size={24} />
         },
         {
-            text: "กำลังบันทึกข้อมูลลงฐานข้อมูล...",
+            text: "Saving data to the database...",
             icon: (color: string) => <Database color={color} size={24} />
         },
         {
-            text: "เสร็จสมบูรณ์!",
+            text: "Completed!",
             icon: (color: string) => <CheckCircle color={color} size={24} />
         }
     ];
@@ -75,7 +75,7 @@ export default function UploadScreen() {
     const pickImage = async () => {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                mediaTypes: ['images'],
                 allowsEditing: true,
                 aspect: [1, 1],
                 quality: 0.8,
@@ -89,7 +89,7 @@ export default function UploadScreen() {
         }
     };
 
-    //  สร้างฟังก์ชันอัปโหลดแบบ XHR เพื่อให้จับเปอร์เซ็นต์ได้
+    //  Handle file upload
     const handleUpload = async () => {
         if (!audioFile) {
             showToast('Please select an audio file', 'info');
@@ -143,7 +143,7 @@ export default function UploadScreen() {
                 setArtist('');
                 setUploadStep(-1);
                 setLoading(false);
-                router.push('/(drawer)/(tabs)');
+                router.back();
             }, 1000);
 
         } catch (error: any) {
@@ -158,7 +158,7 @@ export default function UploadScreen() {
         <View className="flex-1 bg-[#F5F3FF]">
             <ScrollView className="flex-1 px-6 pt-8 pb-24" keyboardShouldPersistTaps="handled">
 
-                {/* ส่วนอัปโหลดไฟล์เสียง */}
+                {/* Upload Audio */}
                 <TouchableOpacity
                     onPress={pickAudio}
                     className="bg-white border-2 border-dashed border-purple-400 rounded-3xl p-5 items-center justify-center mb-6 shadow-sm"
@@ -180,7 +180,7 @@ export default function UploadScreen() {
                     )}
                 </TouchableOpacity>
 
-                {/* ข้อมูลพื้นฐาน */}
+                {/* Basic Info */}
                 <View className="bg-white rounded-[32px] p-6 shadow-md border border-purple-100 mb-8">
                     <Text className="text-2xl font-extrabold text-purple-600 mb-6">Basic Info</Text>
 
@@ -241,30 +241,30 @@ export default function UploadScreen() {
                 {loading ? (
                     <View className="bg-white border-2 border-purple-200 rounded-3xl p-6 shadow-sm mb-10 mt-6 mx-6">
 
-                        {/* แสดงสเต็ปปัจจุบันพร้อมไอคอน */}
+                        {/* Upload Audio */}
                         {uploadStep >= 0 && (
                             <View className="flex-row items-center justify-center bg-purple-50 p-4 rounded-2xl border border-purple-100">
 
-                                {/* แสดงไอคอนของสเต็ปปัจจุบันโดยมีสีต่างกันตามสถานะ */}
+                                {/* Processing Steps */}
                                 {(() => {
                                     const stepItem = processingSteps[uploadStep];
                                     const isFinished = uploadStep === 5;
 
-                                    // กำหนดสี: ถ้าเสร็จแล้วสีเขียว ถ้ากำลังทำสีม่วง
+                                    // Icon color based on step completion
                                     const iconColor = isFinished ? "#10B981" : "#9333EA";
                                     const textColor = isFinished ? "text-green-700" : "text-purple-900";
 
                                     return (
                                         <>
-                                            {/* ถ้ากำลังทำ ให้โชว์ตัวหมุนๆ เล็กๆ ข้างหน้า */}
+                                            {/* Activity Indicator */}
                                             {!isFinished && <ActivityIndicator color="#C084FC" size="small" className="mr-3" />}
 
-                                            {/* เรียกใช้ไอคอน */}
+                                            {/* Step Icon */}
                                             <View className="mr-3">
                                                 {stepItem.icon(iconColor)}
                                             </View>
 
-                                            {/* ข้อความสถานะ */}
+                                            {/* Step Text */}
                                             <Text className={`font-bold text-lg flex-1 ${textColor}`}>
                                                 {stepItem.text}
                                             </Text>

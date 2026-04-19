@@ -1,12 +1,14 @@
 import "../../global.css";
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, ActivityIndicator, RefreshControl, Modal, FlatList } from "react-native";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
 import { Search, UserPlus, Check, X, ChevronRight, Users, Send, Music, ArrowLeft } from "lucide-react-native";
-import { supabase } from "../../../lib/supabase";
-import { httpClient } from "../../../lib/httpClient";
-import { useToast } from "../../../context/ToastContext";
-import { useUser } from "../../../context/UserContext";
+import { supabase } from "@/lib/supabase";
+import { httpClient } from "@/services/httpClient";
+import { useToast } from "@/context/ToastContext";
+import { useUser } from "@/context/UserContext";
 import { useRouter } from "expo-router";
+import MiniPlayer from "@/components/MiniPlayer";
 
 export default function FriendsScreen() {
   const { showToast } = useToast();
@@ -159,8 +161,19 @@ export default function FriendsScreen() {
 
   if (loading && !refreshing) {
     return (
-      <View className="flex-1 justify-center items-center bg-[#F5F3FF]">
-        <ActivityIndicator size="large" color="#7C3AED" />
+      <View className="flex-1 bg-[#FDFEFE] px-6 pt-12">
+        <SkeletonLoader width="55%" height={28} className="mb-4" />
+        <SkeletonLoader width="100%" height={44} borderRadius={22} className="mb-6" />
+        {[1,2,3,4,5].map(i => (
+          <View key={i} className="flex-row items-center mb-4" style={{ gap: 12 }}>
+            <SkeletonLoader width={48} height={48} borderRadius={24} />
+            <View style={{ flex: 1 }}>
+              <SkeletonLoader width="60%" height={16} className="mb-2" />
+              <SkeletonLoader width="35%" height={12} />
+            </View>
+            <SkeletonLoader width={70} height={32} borderRadius={16} />
+          </View>
+        ))}
       </View>
     );
   }
@@ -174,12 +187,12 @@ export default function FriendsScreen() {
             <Users color="#7C3AED" size={24} />
           </TouchableOpacity>
         </View>
-        <Text className="text-gray-500 mb-6">ค้นหาและจัดการเพื่อนของคุณ</Text>
+        <Text className="text-gray-500 mb-6">Search and manage your friends</Text>
 
         <View className="flex-row items-center bg-white border border-purple-100 rounded-full px-5 py-4 shadow-sm mb-6">
           <Search color="#9CA3AF" size={20} />
           <TextInput
-            placeholder="ค้นหาเพื่อนด้วย @handle..."
+            placeholder="Search friends by @handle..."
             value={searchText}
             onChangeText={setSearchText}
             onSubmitEditing={handleSearch}
@@ -198,7 +211,7 @@ export default function FriendsScreen() {
 
         {searchResults.length > 0 && (
           <View className="mb-8">
-            <Text className="text-lg font-bold text-gray-800 mb-4">ผลการค้นหา</Text>
+            <Text className="text-lg font-bold text-gray-800 mb-4">Search Results</Text>
             {searchResults.map((user) => (
               <View key={user.id} className="flex-row items-center bg-purple-50 p-4 rounded-2xl mb-3 shadow-sm border border-purple-100">
                 <Image source={{ uri: user.profile_image_url || 'https://ui-avatars.com/api/?name=U' }} className="w-12 h-12 rounded-full" />
@@ -211,17 +224,17 @@ export default function FriendsScreen() {
                   className="bg-purple-600 px-4 py-2 rounded-full flex-row items-center"
                 >
                   <UserPlus color="#fff" size={16} />
-                  <Text className="text-white ml-2 font-bold text-xs">แอดเพื่อน</Text>
+                  <Text className="text-white ml-2 font-bold text-xs">Send Friend Request</Text>
                 </TouchableOpacity>
               </View>
             ))}
           </View>
         )}
 
-        {/* ใครแอดมาบ้าง (Incoming) */}
+        {/* Incoming Friend Requests */}
         {requests.length > 0 && (
           <View className="mb-8 overflow-visible">
-            <Text className="text-xl font-bold text-gray-800 mb-4">มีคนอยากเป็นเพื่อน ({requests.length})</Text>
+            <Text className="text-xl font-bold text-gray-800 mb-4">Incoming Friend Requests ({requests.length})</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
               {requests.map(item => (
                 <View key={item.senderId} className="bg-white rounded-3xl p-5 mr-4 items-center shadow-sm border border-purple-50 w-60">
@@ -235,7 +248,7 @@ export default function FriendsScreen() {
                       className="flex-1 bg-purple-600 py-3 rounded-xl items-center justify-center flex-row gap-x-1.5"
                     >
                       <Check color="#fff" size={18} />
-                      <Text className="text-white font-bold text-xs">รับแอด</Text>
+                      <Text className="text-white font-bold text-xs">Confirm</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -243,7 +256,7 @@ export default function FriendsScreen() {
                       className="flex-1 border border-purple-200 py-3 rounded-xl items-center justify-center flex-row gap-x-1.5"
                     >
                       <X color="#9333ea" size={18} />
-                      <Text className="text-purple-700 font-bold text-xs">ลบ</Text>
+                      <Text className="text-purple-700 font-bold text-xs">Delete</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -252,22 +265,22 @@ export default function FriendsScreen() {
           </View>
         )}
 
-        {/*คำขอที่เราส่งไป (Outgoing/Sent) */}
+        {/* Outgoing Friend Requests */}
         {sentRequests.length > 0 && (
           <View className="mb-8 overflow-visible">
-            <Text className="text-lg font-bold text-gray-800 mb-4">คำขอที่ส่งไป ({sentRequests.length})</Text>
+            <Text className="text-lg font-bold text-gray-800 mb-4">Outgoing Friend Requests ({sentRequests.length})</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
               {sentRequests.map(item => (
                 <View key={item.receiverId} className="bg-purple-50 rounded-3xl p-4 mr-4 items-center shadow-sm border border-purple-100 w-48">
                   <Image source={{ uri: item.receiver?.profile_image_url || 'https://ui-avatars.com/api/?name=U' }} className="w-12 h-12 rounded-full mb-2 opacity-80" />
                   <Text className="font-bold text-gray-900 text-sm" numberOfLines={1}>{item.receiver?.username || 'Unknown'}</Text>
-                  <Text className="text-gray-500 mb-3 text-xs">รอรับแอด...</Text>
+                  <Text className="text-gray-500 mb-3 text-xs">Pending...</Text>
 
                   <TouchableOpacity
                     onPress={() => handleRequestAction(item.receiverId, 'cancel')}
                     className="w-full bg-white border border-gray-200 py-2 rounded-lg items-center justify-center"
                   >
-                    <Text className="text-gray-600 font-bold text-xs">ยกเลิก</Text>
+                    <Text className="text-gray-600 font-bold text-xs">Cancel</Text>
                   </TouchableOpacity>
                 </View>
               ))}
@@ -275,18 +288,18 @@ export default function FriendsScreen() {
           </View>
         )}
 
-        {/* เพื่อนทั้งหมด (All Friends) */}
+        {/* All Friends */}
         <View className="mb-24">
-          <Text className="text-xl font-bold text-gray-800 mb-4">เพื่อนทั้งหมด ({friends.length})</Text>
+          <Text className="text-xl font-bold text-gray-800 mb-4">All Friends ({friends.length})</Text>
           {friends.length === 0 ? (
-            <Text className="text-gray-500 text-center py-6">ยังไม่มีเพื่อน ลองค้นหาผู้ใช้แล้วแอดดูสิ!</Text>
+            <Text className="text-gray-500 text-center py-6">No friends found.</Text>
           ) : (
             friends.map(item => (
               <View key={item.id} className="flex-row items-center bg-white p-4 rounded-2xl mb-3 shadow-sm border border-gray-50">
                 {/* Profile - tappable to view public profile */}
                 <TouchableOpacity
                   className="flex-row items-center flex-1"
-                  onPress={() => router.push(`/(drawer)/(tabs)/ProfilePublic/${item.id}`)}
+                  onPress={() => router.push({ pathname: "/(drawer)/(main)/user/[id]", params: { id: item.id } })}
                   activeOpacity={0.7}
                 >
                   <View className="relative">
@@ -316,7 +329,7 @@ export default function FriendsScreen() {
         </View>
       </ScrollView>
 
-      {/* ── Send Song Modal ── */}
+      {/* Send Song Modal */}
       <Modal
         visible={sendModalVisible}
         animationType="slide"
@@ -332,9 +345,9 @@ export default function FriendsScreen() {
               </TouchableOpacity>
               <View className="flex-1 items-center">
                 <Text className="text-lg font-bold text-gray-900">
-                  ส่งเพลงให้ {sendTargetFriend?.username}
+                  Send song to {sendTargetFriend?.username}
                 </Text>
-                <Text className="text-xs text-gray-400">เลือกเพลงจากที่ถูกใจ</Text>
+                <Text className="text-xs text-gray-400">Select a song to send to your friend.</Text>
               </View>
               <View className="w-8" />
             </View>
@@ -344,7 +357,7 @@ export default function FriendsScreen() {
               <View className="flex-row items-center bg-gray-50 border border-gray-100 rounded-full px-4 py-3">
                 <Search color="#9CA3AF" size={18} />
                 <TextInput
-                  placeholder="ค้นหาเพลง..."
+                  placeholder="Search for a song..."
                   value={songSearchText}
                   onChangeText={setSongSearchText}
                   className="flex-1 ml-3 text-sm text-gray-800"
@@ -361,7 +374,7 @@ export default function FriendsScreen() {
               ListEmptyComponent={
                 <View className="items-center py-8">
                   <Music color="#D8B4FE" size={32} />
-                  <Text className="text-gray-400 mt-2 text-sm">ยังไม่มีเพลงที่ถูกใจ</Text>
+                  <Text className="text-gray-400 mt-2 text-sm">No songs found.</Text>
                 </View>
               }
               renderItem={({ item }: { item: any }) => {
@@ -395,7 +408,7 @@ export default function FriendsScreen() {
             {/* Message input */}
             <View className="px-5 pt-3 pb-2">
               <TextInput
-                placeholder="เขียนข้อความสั้นๆ (ไม่บังคับ)"
+                placeholder="Write a message (optional)"
                 value={sendMessage}
                 onChangeText={setSendMessage}
                 maxLength={100}
@@ -418,7 +431,7 @@ export default function FriendsScreen() {
                   <>
                     <Send color={selectedSong ? "#fff" : "#9CA3AF"} size={18} />
                     <Text className={`ml-2 font-bold text-base ${selectedSong ? 'text-white' : 'text-gray-400'}`}>
-                      ส่งเพลง
+                      Send Song
                     </Text>
                   </>
                 )}
@@ -427,6 +440,7 @@ export default function FriendsScreen() {
           </View>
         </View>
       </Modal>
+      <MiniPlayer />
     </View>
   );
 }

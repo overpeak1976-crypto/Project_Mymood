@@ -7,10 +7,10 @@ import {
 import { useRouter } from "expo-router";
 import { ArrowLeft, Play, Shuffle, Heart, Pause, Music } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import MiniPlayer from "../../../components/MiniPlayer";
-import SongContextMenu, { SongMenuItem } from "../../../components/SongContextMenu";
-import { useAudio } from "../../../context/AudioContext";
-import { useUser } from "../../../context/UserContext";
+import MiniPlayer from "@/components/MiniPlayer";
+import SongContextMenu, { SongMenuItem } from "@/components/SongContextMenu";
+import { useAudio } from "@/context/AudioContext";
+import { useUser } from "@/context/UserContext";
 
 function formatDuration(seconds?: number): string {
     if (!seconds || seconds <= 0) return "--:--";
@@ -70,24 +70,20 @@ export default function LikedSongsScreen() {
                 showsVerticalScrollIndicator={false}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#8B5CF6" colors={["#8B5CF6"]} />}
             >
-                {/* ── Hero ── */}
+                {/* Hero */}
                 <LinearGradient colors={["#7C3AED", "#EC4899", "#F97316"]} style={styles.hero}>
-                    <View style={styles.heroTopRow}>
-                        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-                            <ArrowLeft color="#fff" size={22} />
-                        </TouchableOpacity>
-                    </View>
+                    
 
                     <View style={styles.heartIcon}>
                         <Heart color="#fff" size={64} fill="#fff" />
                     </View>
-                    <Text style={styles.heroTitle}>เพลงที่ถูกใจ</Text>
-                    <Text style={styles.heroSub}>{likedSongs.length} เพลง</Text>
+                    <Text style={styles.heroTitle}>Liked Songs</Text>
+                    <Text style={styles.heroSub}>{likedSongs.length} songs</Text>
 
                     <View style={styles.heroActions}>
                         <TouchableOpacity style={styles.shuffleBtn} onPress={handleShufflePlay}>
                             <Shuffle color="#7C3AED" size={18} />
-                            <Text style={styles.shuffleBtnText}>สุ่มเล่น</Text>
+                            <Text style={styles.shuffleBtnText}>Shuffle Play</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.playAllBtn}
@@ -99,19 +95,19 @@ export default function LikedSongsScreen() {
                                 <Play color="#fff" size={20} fill="#fff" />
                             )}
                             <Text style={styles.playAllBtnText}>
-                                {isCurrentLiked && isPlaying ? "หยุด" : "เล่นทั้งหมด"}
+                                {isCurrentLiked && isPlaying ? "Pause" : "Play All"}
                             </Text>
                         </TouchableOpacity>
                     </View>
                 </LinearGradient>
 
-                {/* ── Track list ── */}
+                {/* Track list */}
                 <View style={{ paddingHorizontal: 16, paddingTop: 20 }}>
                     {likedSongs.length === 0 ? (
                         <View style={styles.emptyCard}>
                             <Music color="#D8B4FE" size={40} />
-                            <Text style={styles.emptyText}>ยังไม่มีเพลงที่ถูกใจ</Text>
-                            <Text style={styles.emptySubText}>กดหัวใจที่เพลงเพื่อเพิ่มเข้ามาที่นี่</Text>
+                            <Text style={styles.emptyText}>No liked songs found.</Text>
+                            <Text style={styles.emptySubText}>You haven't liked any songs yet. Start exploring and like your favorite tracks!</Text>
                         </View>
                     ) : (
                         likedSongs.map((song: any, index: number) => {

@@ -1,16 +1,15 @@
 import "../../global.css";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
     View, Text, TextInput, FlatList, TouchableOpacity,
     Image, ActivityIndicator, StyleSheet, Keyboard,
 } from "react-native";
 import { Search, X, Sparkles, Music, Heart } from "lucide-react-native";
-import MiniPlayer from "../../../components/MiniPlayer";
-import SongContextMenu, { SongMenuItem } from "../../../components/SongContextMenu";
-import { supabase } from "../../../lib/supabase";
-import { httpClient } from "../../../lib/httpClient";
-import { useAudio } from "../../../context/AudioContext";
-import { useUser } from "../../../context/UserContext";
+import MiniPlayer from "@/components/MiniPlayer";
+import SongContextMenu, { SongMenuItem } from "@/components/SongContextMenu";
+import { httpClient } from "@/services/httpClient";
+import { useAudio } from "@/context/AudioContext";
+import { useUser } from "@/context/UserContext";
 
 const DEBOUNCE_MS = 500;
 
@@ -120,9 +119,9 @@ export default function AISearchScreen() {
             return (
                 <View style={styles.idleContainer}>
                     <Sparkles size={64} color="#DDD6FE" />
-                    <Text style={styles.idleTitle}>ค้นหาเพลง</Text>
+                    <Text style={styles.idleTitle}>Start Searching</Text>
                     <Text style={styles.idleSub}>
-                        พิมพ์ชื่อเพลง, ศิลปิน, genre{"\n"}หรืออารมณ์ที่รู้สึก เช่น "เพลงเศร้ายามดึก"
+                        Search for songs, artists, or genres{"\n"}and discover new music tailored to your taste.
                     </Text>
                 </View>
             );
@@ -130,8 +129,8 @@ export default function AISearchScreen() {
         return (
             <View style={styles.idleContainer}>
                 <Music size={56} color="#DDD6FE" />
-                <Text style={styles.idleTitle}>ไม่พบเพลง</Text>
-                <Text style={styles.idleSub}>ลองค้นหาด้วยคำอื่นดูครับ</Text>
+                <Text style={styles.idleTitle}>No Results Found</Text>
+                <Text style={styles.idleSub}>Try adjusting your search or explore new music categories.</Text>
             </View>
         );
     };
@@ -139,10 +138,10 @@ export default function AISearchScreen() {
     return (
         <View style={{ flex: 1, backgroundColor: "#F5F3FF" }}>
 
-            {/* ── Header ── */}
+            {/* Header */}
             <View style={styles.headerSection}>
                 <Text style={styles.headerTitle}>Search</Text>
-                <Text style={styles.headerSub}>เพลง ศิลปิน หรือ AI Vibe</Text>
+                <Text style={styles.headerSub}>Search for songs, artists, or AI Vibe</Text>
 
                 {/* Search bar */}
                 <View style={styles.searchBar}>
@@ -153,7 +152,7 @@ export default function AISearchScreen() {
                     <TextInput
                         value={query}
                         onChangeText={handleQueryChange}
-                        placeholder="ค้นหาเพลง, ศิลปิน, หรืออารมณ์..."
+                        placeholder="Search by song title, artist, or genre..."
                         placeholderTextColor="#9CA3AF"
                         style={styles.searchInput}
                         returnKeyType="search"
@@ -171,15 +170,15 @@ export default function AISearchScreen() {
                 </View>
             </View>
 
-            {/* ── Legend ── */}
+            {/* Legend */}
             {results.length > 0 && (
                 <View style={styles.legend}>
-                    <View style={[styles.badge, styles.badgeStd]}><Music size={11} color="#059669" /><Text style={[styles.badgeText, { color: "#059669" }]}>Match = ตรงชื่อ</Text></View>
-                    <View style={[styles.badge, styles.badgeAI]}><Sparkles size={11} color="#7C3AED" /><Text style={[styles.badgeText, { color: "#7C3AED" }]}>AI Vibe = ใกล้เคียงอารมณ์</Text></View>
+                    <View style={[styles.badge, styles.badgeStd]}><Music size={11} color="#059669" /><Text style={[styles.badgeText, { color: "#059669" }]}>Match = Exact Match</Text></View>
+                    <View style={[styles.badge, styles.badgeAI]}><Sparkles size={11} color="#7C3AED" /><Text style={[styles.badgeText, { color: "#7C3AED" }]}>AI Vibe = AI Generated</Text></View>
                 </View>
             )}
 
-            {/* ── Results ── */}
+            {/* Results */}
             <FlatList
                 data={results}
                 keyExtractor={(item) => item.id}
@@ -203,7 +202,7 @@ export default function AISearchScreen() {
     );
 }
 
-// ── Styles ──────────────────────────────────────────────────────────────────
+// Styles
 const styles = StyleSheet.create({
     // Header
     headerSection: {

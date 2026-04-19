@@ -1,18 +1,20 @@
-import "../../global.css";
+import "../../../global.css";
 import React, { useState, useEffect } from "react";
 import {
     View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator,
     Modal, TextInput, Switch, StyleSheet, Dimensions, RefreshControl
 } from "react-native";
+import { SkeletonLoader } from "@/components/SkeletonLoader";
 import { Upload, Heart, Music, ListMusic } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import MiniPlayer from "../../../components/MiniPlayer";
-import SongContextMenu, { SongMenuItem } from "../../../components/SongContextMenu";
-import { supabase } from "../../../lib/supabase";
-import { httpClient } from "../../../lib/httpClient";
-import { useAudio } from "../../../context/AudioContext";
-import { useUser } from "../../../context/UserContext";
-import { useToast } from "../../../context/ToastContext";
+import * as ImagePicker from "expo-image-picker";
+import MiniPlayer from "@/components/MiniPlayer";
+import SongContextMenu, { SongMenuItem } from "@/components/SongContextMenu";
+import { supabase } from "@/lib/supabase";
+import { httpClient } from "@/services/httpClient";
+import { useAudio } from "@/context/AudioContext";
+import { useUser } from "@/context/UserContext";
+import { useToast } from "@/context/ToastContext";
 import { useRouter } from "expo-router";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -32,6 +34,7 @@ export default function LibraryScreen() {
     const [newPlaylistName, setNewPlaylistName] = useState("");
     const [isPublic, setIsPublic] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
+    const [coverImage, setCoverImage] = useState<string | null>(null);
     const [selectedSong, setSelectedSong] = useState<Song | null>(null);
     const loadLibraryData = async (isBackground = false) => {
         if (!isBackground) setLoading(true);
@@ -70,19 +73,43 @@ export default function LibraryScreen() {
     }, []);
     const openContextMenu = (song: Song) => setSelectedSong(song);
     const closeContextMenu = () => setSelectedSong(null);
+
+    const pickCoverImage = async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+        if (!result.canceled && result.assets[0]) {
+            setCoverImage(result.assets[0].uri);
+        }
+    };
+
     const handleCreatePlaylist = async () => {
         if (!newPlaylistName.trim()) { showToast("Please enter a playlist name", 'info'); return; }
         setIsCreating(true);
         try {
-            const data = await httpClient.post<{ playlist: { id: string; name: string } }>('/api/playlists', {
-                name: newPlaylistName.trim(),
-            });
+            const formData = new FormData();
+            formData.append('name', newPlaylistName.trim());
+            if (coverImage) {
+                const filename = coverImage.split('/').pop() || 'cover.jpg';
+                const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+                const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+                formData.append('cover_image', {
+                    uri: coverImage,
+                    name: filename,
+                    type: mimeType,
+                } as any);
+            }
+            const data = await httpClient.postFormData<{ playlist: { id: string; name: string; cover_image_url?: string } }>('/api/playlists', formData);
             setPlaylists((prev) => [{
                 id: data.playlist.id, name: data.playlist.name,
-                cover_image_url: undefined, track_count: 0,
+                cover_image_url: data.playlist.cover_image_url, track_count: 0,
             }, ...prev]);
             setCreateModalVisible(false);
             setNewPlaylistName("");
+            setCoverImage(null);
         } catch (err: any) {
             showToast(`Error: ${err.message}`, 'error');
         } finally {
@@ -92,8 +119,17 @@ export default function LibraryScreen() {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F5F3FF" }}>
-                <ActivityIndicator size="large" color="#7C3AED" />
+            <View style={{ flex: 1, backgroundColor: "#F5F3FF", paddingTop: 20, paddingHorizontal: 20 }}>
+                <SkeletonLoader width="50%" height={28} className="mb-6" />
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+                    {[1,2,3,4,5,6].map(i => (
+                        <View key={i} style={{ width: (Dimensions.get("window").width - 56) / 2 }}>
+                            <SkeletonLoader width="100%" height={140} borderRadius={16} className="mb-2" />
+                            <SkeletonLoader width="70%" height={14} className="mb-1" />
+                            <SkeletonLoader width="40%" height={12} />
+                        </View>
+                    ))}
+                </View>
             </View>
         );
     }
@@ -107,17 +143,17 @@ export default function LibraryScreen() {
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.headerTitle}>My Library</Text>
-                    <Text style={styles.headerSub}>เพลงและเพลย์ลิสต์ของคุณ</Text>
+                    <Text style={styles.headerSub}>เน€เธเธฅเธเนเธฅเธฐเน€เธเธฅเธขเนเธฅเธดเธชเธ•เนเธเธญเธเธเธธเธ“</Text>
                 </View>
 
                 <View style={{ paddingHorizontal: 20, paddingTop: 24 }}>
 
-                    {/* ── Recently Played ── */}
-                    <Text style={styles.sectionTitle}>เล่นล่าสุด</Text>
+                    {/* Recently Played */}
+                    <Text style={styles.sectionTitle}>Recently Played</Text>
                     {recentSongs.length === 0 ? (
                         <View style={styles.emptyCard}>
                             <Music color="#D8B4FE" size={40} />
-                            <Text style={styles.emptyText}>ยังไม่มีประวัติการฟังเพลงครับ</Text>
+                            <Text style={styles.emptyText}>You haven't played any songs recently.</Text>
                         </View>
                     ) : (
                         <View style={{ position: "relative", marginBottom: 28 }}>
@@ -148,17 +184,17 @@ export default function LibraryScreen() {
                         </View>
                     )}
 
-                    {/* ── Playlists ── */}
-                    <Text style={styles.sectionTitle}>เพลย์ลิสต์</Text>
+                    {/* Playlists */}
+                    <Text style={styles.sectionTitle}>Playlists</Text>
                     <View style={styles.grid}>
 
                         {/* Liked Songs card */}
-                        <TouchableOpacity style={styles.gridCell} onPress={() => router.push('/(drawer)/(tabs)/liked-songs')}>
+                        <TouchableOpacity style={styles.gridCell} onPress={() => router.push('/(drawer)/(main)/liked-songs')}>
                             <View style={[styles.gridCover, { backgroundColor: "#F3E8FF", borderWidth: 1, borderColor: "#DDD6FE" }]}>
                                 <Heart color="#9333ea" size={44} fill="#9333ea" />
                             </View>
-                            <Text style={styles.gridLabel} numberOfLines={1}>เพลงที่ถูกใจ</Text>
-                            <Text style={styles.gridSub}>{likedSongs.length} เพลง</Text>
+                            <Text style={styles.gridLabel} numberOfLines={1}>Liked Songs</Text>
+                            <Text style={styles.gridSub}>{likedSongs.length} songs</Text>
                         </TouchableOpacity>
 
                         {/* New Playlist button */}
@@ -166,22 +202,39 @@ export default function LibraryScreen() {
                             <View style={[styles.gridCover, { backgroundColor: "#fff", borderWidth: 2, borderColor: "#C4B5FD", borderStyle: "dashed" }]}>
                                 <Text style={{ fontSize: 44, color: "#A78BFA", lineHeight: 52 }}>+</Text>
                             </View>
-                            <Text style={styles.gridLabel}>เพลย์ลิสต์ใหม่</Text>
-                            <Text style={styles.gridSub}>สร้างเองได้เลย</Text>
+                            <Text style={styles.gridLabel}>New Playlist</Text>
+                            <Text style={styles.gridSub}>Create a new playlist</Text>
                         </TouchableOpacity>
 
                         {/* User playlists */}
-                        {playlists.map((playlist) => (
-                            <TouchableOpacity key={playlist.id} style={styles.gridCell} onPress={() => router.push(`/(drawer)/(tabs)/playlist/${playlist.id}`)}>
+                        {playlists.map((playlist, idx) => (
+                            <TouchableOpacity
+                                key={playlist.id}
+                                style={styles.gridCell}
+                                onPress={() => router.push({ pathname: "/(drawer)/(main)/playlist/[id]", params: { id: playlist.id } })}
+                            >
                                 {playlist.cover_image_url ? (
                                     <Image source={{ uri: playlist.cover_image_url }} style={styles.gridCover} />
                                 ) : (
-                                    <View style={[styles.gridCover, { backgroundColor: "#EDE9FE" }]}>
-                                        <ListMusic color="#7C3AED" size={40} />
+                                    <View style={styles.gridCover}>
+                                        <LinearGradient
+                                            colors={[
+                                                ['#7C3AED', '#A855F7', '#E9D5FF'],
+                                                ['#6366F1', '#818CF8', '#C7D2FE'],
+                                                ['#8B5CF6', '#C084FC', '#F5D0FE'],
+                                                ['#7C3AED', '#EC4899', '#FDE68A'],
+                                            ][idx % 4] as [string, string, string]}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 1 }}
+                                            style={StyleSheet.absoluteFillObject}
+                                        />
+                                        <View style={styles.gridCoverIconRing}>
+                                            <Music color="#fff" size={28} />
+                                        </View>
                                     </View>
                                 )}
                                 <Text style={styles.gridLabel} numberOfLines={1}>{playlist.name}</Text>
-                                <Text style={styles.gridSub}>{playlist.track_count} เพลง</Text>
+                                <Text style={styles.gridSub}>{playlist.track_count} songs</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -192,7 +245,7 @@ export default function LibraryScreen() {
 
             <MiniPlayer />
 
-            {/* ── Song Context Menu (long-press bottom sheet) ── */}
+            {/* Song Context Menu (long-press bottom sheet) */}
             <SongContextMenu
                 visible={!!selectedSong}
                 song={selectedSong}
@@ -200,17 +253,22 @@ export default function LibraryScreen() {
             />
 
 
-            {/* ═══════════════════════════════════════════════════════════════════════
-          CREATE PLAYLIST — Centered pop-up (from previous build)
-      ═══════════════════════════════════════════════════════════════════════ */}
-            <Modal visible={createModalVisible} transparent animationType="fade" onRequestClose={() => setCreateModalVisible(false)}>
-                <TouchableOpacity activeOpacity={1} onPress={() => setCreateModalVisible(false)} style={styles.centeredOverlay}>
+            {/* CREATE PLAYLIST — Centered pop-up (from previous build) */}
+
+            <Modal visible={createModalVisible} transparent animationType="fade" onRequestClose={() => { setCreateModalVisible(false); setCoverImage(null); }}>
+                <TouchableOpacity activeOpacity={1} onPress={() => { setCreateModalVisible(false); setCoverImage(null); }} style={styles.centeredOverlay}>
                     <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={styles.centeredCard}>
                         <Text style={styles.cardTitle}>NEW PLAYLIST</Text>
 
-                        <TouchableOpacity style={styles.uploadBox} activeOpacity={0.7}>
-                            <Upload color="#7C3AED" size={32} />
-                            <Text style={styles.uploadText}>upload</Text>
+                        <TouchableOpacity style={styles.uploadBox} activeOpacity={0.7} onPress={pickCoverImage}>
+                            {coverImage ? (
+                                <Image source={{ uri: coverImage }} style={styles.uploadPreview} />
+                            ) : (
+                                <>
+                                    <Upload color="#7C3AED" size={32} />
+                                    <Text style={styles.uploadText}>upload</Text>
+                                </>
+                            )}
                         </TouchableOpacity>
 
                         <View style={styles.toggleRow}>
@@ -246,7 +304,7 @@ export default function LibraryScreen() {
     );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// Styles
 const styles = StyleSheet.create({
     // Layout
     header: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24, backgroundColor: "#fff", borderBottomLeftRadius: 36, borderBottomRightRadius: 36 },
@@ -266,10 +324,11 @@ const styles = StyleSheet.create({
     grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
     gridCell: { width: "48%", marginBottom: 20 },
     gridCover: { width: "100%", aspectRatio: 1, borderRadius: 24, backgroundColor: "#EDE9FE", justifyContent: "center", alignItems: "center", overflow: "hidden" },
+    gridCoverIconRing: { width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(255,255,255,0.25)", justifyContent: "center", alignItems: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.4)" },
     gridLabel: { fontWeight: "700", color: "#1F2937", fontSize: 13, marginTop: 8 },
     gridSub: { color: "#6B7280", fontSize: 11, marginTop: 2 },
 
-    // ── Bottom Sheet (context menu)
+    // Bottom Sheet (context menu)
     sheetOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
     sheetContainer: { backgroundColor: "#fff", borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 20, paddingTop: 12, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 20, elevation: 12 },
     dragHandle: { width: 40, height: 4, backgroundColor: "#D1D5DB", borderRadius: 2, alignSelf: "center", marginBottom: 20 },
@@ -284,11 +343,12 @@ const styles = StyleSheet.create({
     playlistRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10 },
     playlistRowThumb: { width: 44, height: 44, borderRadius: 10, backgroundColor: "#EDE9FE" },
 
-    // ── Create Playlist modal
+    // Create Playlist modal
     centeredOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", paddingHorizontal: 28 },
     centeredCard: { width: "100%", backgroundColor: "#fff", borderRadius: 28, padding: 24, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 20, elevation: 10 },
     cardTitle: { fontSize: 18, fontWeight: "800", color: "#1F2937", letterSpacing: 1.5, marginBottom: 20 },
-    uploadBox: { alignSelf: "center", width: 140, height: 140, borderRadius: 16, borderWidth: 2.5, borderColor: "#7C3AED", borderStyle: "dashed", justifyContent: "center", alignItems: "center", marginBottom: 24, backgroundColor: "#FAF5FF" },
+    uploadBox: { alignSelf: "center", width: 140, height: 140, borderRadius: 16, borderWidth: 2.5, borderColor: "#7C3AED", borderStyle: "dashed", justifyContent: "center", alignItems: "center", marginBottom: 24, backgroundColor: "#FAF5FF", overflow: "hidden" },
+    uploadPreview: { width: "100%", height: "100%", borderRadius: 14 },
     uploadText: { marginTop: 8, color: "#7C3AED", fontWeight: "600", fontSize: 14 },
     toggleRow: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
     toggleLabel: { fontSize: 15, fontWeight: "700", color: "#7C3AED" },

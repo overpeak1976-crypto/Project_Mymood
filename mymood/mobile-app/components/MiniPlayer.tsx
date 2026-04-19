@@ -4,7 +4,7 @@ import { Play, Pause, SkipForward } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import { useAudio } from '../context/AudioContext';
-import MiniPlayerProgress from './Miniplayerprogress';
+import MiniPlayerProgress from './MiniPlayerProgress';
 
 function MiniPlayer() {
   const router = useRouter();
@@ -13,17 +13,17 @@ function MiniPlayer() {
   return (
     <View className="absolute bottom-4 left-4 right-4 h-20 shadow-2xl rounded-[30px] overflow-hidden border border-white/60 bg-white/10 " >
 
-      {/* 1. กระจกฝ้า (ฉากหลัง) */}
+      {/* 1. Frosted Glass (Background) */}
       <BlurView
         intensity={30}
         tint="light"
         style={{ position: 'absolute', top: 0, left: 0, bottom: 0, right: 0 }}
       />
 
-      {/* 2. หลอดเพลงแบบ Liquid Fill */}
+      {/* 2. Liquid Fill Music Bar */}
       <MiniPlayerProgress />
 
-      {/* 3. ส่วนเนื้อหา */}
+      {/* 3. Content Section */}
       <View className="flex-1 flex-row items-center justify-between px-4 z-10">
         <TouchableOpacity
           className="flex-row items-center flex-1"

@@ -18,7 +18,7 @@ export default function WelcomeScreen() {
         </Text>
       </View>
       <View className="w-full pb-10">
-        <TouchableOpacity onPress={() => router.push("/login")} className="bg-purple-600 w-full py-5 rounded-full items-center shadow-lg shadow-purple-300">
+        <TouchableOpacity onPress={() => router.push("/(auth)/login")} className="bg-purple-600 w-full py-5 rounded-full items-center shadow-lg shadow-purple-300">
           <Text className="text-white text-xl font-bold tracking-wider">
             Get Started
           </Text>
@@ -26,7 +26,7 @@ export default function WelcomeScreen() {
 
         <View className="flex-row justify-center items-center mt-6">
           <Text className="text-gray-500 text-base">Don't have an account? </Text>
-          <TouchableOpacity onPress={() => router.push("/signup")}>
+          <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
             <Text className="text-purple-600 font-bold text-base">Sign Up</Text>
           </TouchableOpacity>
         </View>

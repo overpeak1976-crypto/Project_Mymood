@@ -12,13 +12,13 @@ import {
     ImageBackground,
 } from "react-native";
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { httpClient } from "../../../../lib/httpClient";
-import { supabase } from "../../../../lib/supabase";
+import { httpClient } from "@/services/httpClient";
+import { supabase } from "@/lib/supabase";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { useAudio } from "../../../../context/AudioContext";
-import { useToast } from "../../../../context/ToastContext";
-import MiniPlayer from "../../../../components/MiniPlayer";
+import { useAudio } from "@/context/AudioContext";
+import { useToast } from "@/context/ToastContext";
+import MiniPlayer from "@/components/MiniPlayer";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import {
@@ -29,6 +29,7 @@ import {
     Clock,
     ChevronLeft,
     Music2,
+    Music,
     Link2,
     Users,
     Upload,
@@ -133,14 +134,14 @@ export default function PublicProfile() {
             if (profile.friendship_status === 'none') {
                 await httpClient.post('/api/users/add-friend', { targetUserId: id });
                 setProfile((p: any) => ({ ...p, friendship_status: 'pending_sent' }));
-                showToast('ส่งคำขอเพิ่มเพื่อนแล้ว!', 'success');
+                showToast('Friend request sent!', 'success');
             } else if (profile.friendship_status === 'pending_received') {
                 await httpClient.put('/api/users/accept-friend', { senderId: id });
                 setProfile((p: any) => ({ ...p, friendship_status: 'friends', friend_count: (p.friend_count || 0) + 1 }));
-                showToast('เป็นเพื่อนกันแล้ว!', 'success');
+                showToast('You are now friends!', 'success');
             }
         } catch (error: any) {
-            showToast(error.message || 'เกิดข้อผิดพลาด', 'error');
+            showToast(error.message || 'An error occurred', 'error');
         }
         setAddingFriend(false);
     };
@@ -163,13 +164,13 @@ export default function PublicProfile() {
     const getFriendButtonConfig = () => {
         switch (profile?.friendship_status) {
             case 'friends':
-                return { label: 'เพื่อนกันแล้ว', icon: <UserCheck size={18} color="#fff" />, colors: ['#7C3AED', '#9333EA'] as [string, string], disabled: true };
+                return { label: 'Friends', icon: <UserCheck size={18} color="#fff" />, colors: ['#7C3AED', '#9333EA'] as [string, string], disabled: true };
             case 'pending_sent':
-                return { label: 'รอการตอบรับ', icon: <Clock size={18} color="#7C3AED" />, colors: ['#F3F4F6', '#F3F4F6'] as [string, string], disabled: true };
+                return { label: 'Pending', icon: <Clock size={18} color="#7C3AED" />, colors: ['#F3F4F6', '#F3F4F6'] as [string, string], disabled: true };
             case 'pending_received':
-                return { label: 'ตอบรับเพื่อน', icon: <UserPlus size={18} color="#fff" />, colors: ['#10B981', '#059669'] as [string, string], disabled: false };
+                return { label: 'Accept Friend', icon: <UserPlus size={18} color="#fff" />, colors: ['#10B981', '#059669'] as [string, string], disabled: false };
             default:
-                return { label: 'เพิ่มเพื่อน', icon: <UserPlus size={18} color="#fff" />, colors: ['#7C3AED', '#6D28D9'] as [string, string], disabled: false };
+                return { label: 'Add Friend', icon: <UserPlus size={18} color="#fff" />, colors: ['#7C3AED', '#6D28D9'] as [string, string], disabled: false };
         }
     };
 
@@ -184,7 +185,7 @@ export default function PublicProfile() {
     if (!profile) {
         return (
             <View style={s.loadingScreen}>
-                <Text style={{ color: '#6B7280', fontSize: 16 }}>ไม่พบโปรไฟล์</Text>
+                <Text style={{ color: '#6B7280', fontSize: 16 }}>Profile not found</Text>
             </View>
         );
     }
@@ -209,13 +210,7 @@ export default function PublicProfile() {
                         locations={[0, 0.65, 1]}
                         style={StyleSheet.absoluteFillObject}
                     />
-
-                    {/* Back button */}
-                    <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
-                        <BlurView intensity={60} tint="dark" style={s.backBtnBlur}>
-                            <ChevronLeft size={22} color="#fff" />
-                        </BlurView>
-                    </TouchableOpacity>
+                    
                 </ImageBackground>
 
                 {/* ════════ PROFILE CARD ════════ */}
@@ -247,19 +242,19 @@ export default function PublicProfile() {
                         <View style={s.statItem}>
                             <Users size={16} color="#7C3AED" />
                             <Text style={s.statNumber}>{profile.friend_count ?? 0}</Text>
-                            <Text style={s.statLabel}>เพื่อน</Text>
+                            <Text style={s.statLabel}>Friends</Text>
                         </View>
                         <View style={s.statDivider} />
                         <View style={s.statItem}>
                             <ListMusic size={16} color="#7C3AED" />
                             <Text style={s.statNumber}>{profile.playlists?.length ?? 0}</Text>
-                            <Text style={s.statLabel}>เพลย์ลิสต์</Text>
+                            <Text style={s.statLabel}>Playlists</Text>
                         </View>
                         <View style={s.statDivider} />
                         <View style={s.statItem}>
                             <Upload size={16} color="#7C3AED" />
                             <Text style={s.statNumber}>{profile.upload_count ?? 0}</Text>
-                            <Text style={s.statLabel}>อัพโหลด</Text>
+                            <Text style={s.statLabel}>Uploads</Text>
                         </View>
                     </View>
 
@@ -319,10 +314,7 @@ export default function PublicProfile() {
                     {/* ════════ CURRENTLY PLAYING ════════ */}
                     {profile.song && (
                         <Animated.View style={{ opacity: cardFade1, transform: [{ translateY: cardSlide1 }] }}>
-                            <View style={s.sectionHeader}>
-                                <Headphones size={20} color="#7C3AED" />
-                                <Text style={s.sectionTitle}>กำลังฟัง</Text>
-                            </View>
+                            
                             <TouchableOpacity
                                 onPress={() => handlePlaySong(profile.song, [profile.song])}
                                 activeOpacity={0.85}
@@ -365,7 +357,7 @@ export default function PublicProfile() {
                         <Animated.View style={{ opacity: cardFade2, transform: [{ translateY: cardSlide2 }] }}>
                             <View style={s.sectionHeader}>
                                 <Disc3 size={20} color="#7C3AED" />
-                                <Text style={s.sectionTitle}>เพลย์ลิสต์สาธารณะ</Text>
+                                <Text style={s.sectionTitle}>Public Playlists</Text>
                                 <Text style={s.sectionCount}>{profile.playlists.length}</Text>
                             </View>
                             <ScrollView
@@ -374,19 +366,40 @@ export default function PublicProfile() {
                                 contentContainerStyle={{ paddingRight: 24 }}
                                 style={{ marginHorizontal: -24, paddingLeft: 24 }}
                             >
-                                {profile.playlists.map((pl: any) => (
+                                {profile.playlists.map((pl: any, idx: number) => (
                                     <TouchableOpacity
                                         key={pl.id}
                                         style={s.playlistCard}
                                         activeOpacity={0.85}
-                                        onPress={() => router.push(`/(drawer)/(tabs)/playlist/${pl.id}`)}
+                                        onPress={() => router.push({ pathname: "/(drawer)/(main)/playlist/[id]", params: { id: pl.id } })}
                                     >
-                                        <Image
-                                            source={{ uri: pl.cover_image_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(pl.name)}&background=7C3AED&color=fff&size=200` }}
-                                            style={s.playlistCover}
-                                        />
+                                        {pl.cover_image_url ? (
+                                            <Image
+                                                source={{ uri: pl.cover_image_url }}
+                                                style={s.playlistCover}
+                                            />
+                                        ) : (
+                                            <View style={[s.playlistCover, { overflow: 'hidden' }]}> 
+                                                <LinearGradient
+                                                    colors={[
+                                                        ['#7C3AED', '#A855F7', '#E9D5FF'],
+                                                        ['#6366F1', '#818CF8', '#C7D2FE'],
+                                                        ['#8B5CF6', '#C084FC', '#F5D0FE'],
+                                                        ['#7C3AED', '#EC4899', '#FDE68A'],
+                                                    ][idx % 4] as [string, string, string]}
+                                                    start={{ x: 0, y: 0 }}
+                                                    end={{ x: 1, y: 1 }}
+                                                    style={StyleSheet.absoluteFillObject}
+                                                />
+                                                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                                    <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)' }}>
+                                                        <Music color="#fff" size={26} />
+                                                    </View>
+                                                </View>
+                                            </View>
+                                        )}
                                         <Text style={s.playlistName} numberOfLines={2}>{pl.name}</Text>
-                                        <Text style={s.playlistCount}>{pl.track_count} เพลง</Text>
+                                        <Text style={s.playlistCount}>{pl.track_count} Songs</Text>
                                     </TouchableOpacity>
                                 ))}
                             </ScrollView>
@@ -398,13 +411,13 @@ export default function PublicProfile() {
                         <Animated.View style={{ opacity: cardFade3, transform: [{ translateY: cardSlide3 }] }}>
                             <View style={s.sectionHeader}>
                                 <Music2 size={20} color="#7C3AED" />
-                                <Text style={s.sectionTitle}>เพลงที่อัพโหลด</Text>
+                                <Text style={s.sectionTitle}>Uploaded Songs</Text>
                                 <Text style={s.sectionCount}>{uploadedSongs.length}</Text>
                             </View>
                             {uploadedSongs.length === 0 ? (
                                 <View style={s.emptyCard}>
                                     <Music2 size={32} color="#E9D5FF" />
-                                    <Text style={s.emptyText}>ยังไม่มีเพลงที่อัพโหลด</Text>
+                                    <Text style={s.emptyText}>No uploaded songs</Text>
                                 </View>
                             ) : (
                                 <View style={s.songsContainer}>

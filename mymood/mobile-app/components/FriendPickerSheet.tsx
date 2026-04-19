@@ -6,7 +6,7 @@ import {
 import BottomSheet, { BottomSheetBackdrop, BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import { BlurView } from "expo-blur";
 import { Send, Search, X } from "lucide-react-native";
-import { httpClient } from "../lib/httpClient";
+import { httpClient } from "@/services/httpClient";
 import { useToast } from "../context/ToastContext";
 
 interface Friend {
@@ -53,7 +53,7 @@ export default function FriendPickerSheet({
       const data = await httpClient.get<{ friends: Friend[] }>("/api/friends/list");
       setFriends(Array.isArray(data) ? data : data?.friends || []);
     } catch (err: any) {
-      showToast("โหลดรายชื่อเพื่อนไม่สำเร็จ", "error");
+      showToast("Failed to load friends list", "error");
     } finally {
       setLoading(false);
     }
@@ -71,7 +71,7 @@ export default function FriendPickerSheet({
       showToast(`ส่ง "${songTitle}" ให้ ${friend.username} แล้ว!`, "success");
       onClose();
     } catch (err: any) {
-      showToast(err.message || "ส่งไม่สำเร็จ", "error");
+      showToast(err.message || "Failed to send song", "error");
     } finally {
       setSending(null);
     }
@@ -108,14 +108,14 @@ export default function FriendPickerSheet({
     >
       <BottomSheetScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
         {/* Header */}
-        <Text style={s.title}>ส่งเพลงให้เพื่อน</Text>
-        {songTitle && <Text style={s.subtitle} numberOfLines={1}>♫ {songTitle}</Text>}
+        <Text style={s.title}>Send Song to Friend</Text>
+        {songTitle && <Text style={s.subtitle} numberOfLines={1}>Song: {songTitle}</Text>}
 
         {/* Message input */}
         <View style={s.msgRow}>
           <TextInput
             style={s.msgInput}
-            placeholder="เขียนข้อความ... (ไม่บังคับ)"
+            placeholder="Write a message... (optional)"
             placeholderTextColor="#9CA3AF"
             value={message}
             onChangeText={setMessage}
@@ -133,7 +133,7 @@ export default function FriendPickerSheet({
           <Search size={18} color="#9CA3AF" />
           <TextInput
             style={s.searchInput}
-            placeholder="ค้นหาเพื่อน..."
+            placeholder="Search friends..."
             placeholderTextColor="#9CA3AF"
             value={search}
             onChangeText={setSearch}
@@ -145,7 +145,7 @@ export default function FriendPickerSheet({
           <ActivityIndicator color="#7C3AED" style={{ paddingVertical: 40 }} />
         ) : filtered.length === 0 ? (
           <Text style={s.empty}>
-            {friends.length === 0 ? "ยังไม่มีเพื่อน" : "ไม่พบเพื่อนที่ค้นหา"}
+            {friends.length === 0 ? "No friends yet" : "No friends found"}
           </Text>
         ) : (
           filtered.map((friend) => {

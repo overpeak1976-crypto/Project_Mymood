@@ -1,9 +1,9 @@
 import "../global.css";
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useToast } from "../../context/ToastContext";
+import { useToast } from "@/context/ToastContext";
 import { useRouter } from "expo-router";
-import { supabase } from "../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 export default function SignUpScreen() {
   const router = useRouter();
@@ -61,7 +61,7 @@ export default function SignUpScreen() {
         }
       } else if (data.user) {
         showToast("Account created! Setting up profile...", 'success');
-        router.replace("/complete-profile"); 
+        router.replace("/(auth)/complete-profile" as any); 
       }
     } catch (err: any) {
       showToast(`Error: ${err.message}`, 'error');
@@ -73,11 +73,11 @@ export default function SignUpScreen() {
   return (
     <View className="flex-1 bg-[#F5F3FF] px-6 pt-20">
       <TouchableOpacity onPress={() => router.back()} className="mb-6">
-        <Text className="text-purple-600 font-bold text-lg">← Back</Text>
+        <Text className="text-purple-600 font-bold text-lg">Back</Text>
       </TouchableOpacity>
 
       <Text className="text-3xl font-extrabold text-purple-800 mb-2">Create Account</Text>
-      <Text className="text-gray-500 mb-8">ใช้อีเมลสมัครใช้งาน เพื่อเริ่มต้นแชร์เสียงเพลงของคุณ</Text>
+      <Text className="text-gray-500 mb-8">Please fill in the details below to create your account.</Text>
 
       <View className="mb-4">
         <TextInput 
@@ -90,14 +90,14 @@ export default function SignUpScreen() {
         />
         <TextInput 
           className="bg-white p-4 rounded-2xl border border-purple-100 mb-4 shadow-sm"
-          placeholder="Password (รหัสผ่าน 8 ตัวขึ้นไป)"
+          placeholder="Password (at least 8 characters)"
           secureTextEntry
           value={password}
           onChangeText={setPassword}
         />
         <TextInput 
           className="bg-white p-4 rounded-2xl border border-purple-100 mb-8 shadow-sm"
-          placeholder="Confirm Password (ยืนยันรหัสผ่าน)"
+          placeholder="Confirm Password"
           secureTextEntry
           value={confirmPassword}
           onChangeText={setConfirmPassword}
