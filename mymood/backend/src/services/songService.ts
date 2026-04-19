@@ -9,6 +9,10 @@ export const songService = {
     return songRepository.getAllSongs();
   },
 
+  async getPopularSongs(limit: number = 10) {
+    return songRepository.getPopularSongs(limit);
+  },
+
   async getMyUploads(userId: string) {
     return songRepository.findMyUploads(userId);
   },
@@ -29,6 +33,7 @@ export const songService = {
     audioFilePath: string,
     coverImageFilePath: string,
     durationSeconds: number,
+    isPublic: boolean = true,
   ) {
     console.log(`🎵 Processing song: ${title} - ${artist}`);
 
@@ -97,6 +102,7 @@ export const songService = {
       energy: audioStats.energy,
       duration_seconds: durationSeconds,
       genre: aiAnalysis.genre,
+      is_public: isPublic,
     });
 
     // 6. Generate and save vector

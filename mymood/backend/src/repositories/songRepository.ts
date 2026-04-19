@@ -8,6 +8,14 @@ export const songRepository = {
     });
   },
 
+  async getPopularSongs(limit: number = 10) {
+    return prisma.songs.findMany({
+      where: { is_public: true },
+      orderBy: { play_count: 'desc' },
+      take: limit,
+    });
+  },
+
   async findSongById(id: string) {
     return prisma.songs.findUnique({ where: { id } });
   },
@@ -58,6 +66,7 @@ export const songRepository = {
     energy: number;
     duration_seconds: number;
     genre: string;
+    is_public?: boolean;
   }) {
     return prisma.songs.create({ data, select: { id: true } });
   },

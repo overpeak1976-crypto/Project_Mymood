@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { api } from '../lib/api';
 import {
   Upload, Music, Image, X, Loader2, CheckCircle, AlertCircle,
-  FileAudio, FileImage,
+  FileAudio, FileImage, Globe, Lock,
 } from 'lucide-react';
 
 interface UploadResult {
@@ -14,6 +14,7 @@ export default function UploadPage({ token }: { token: string }) {
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [album, setAlbum] = useState('');
+  const [isPublic, setIsPublic] = useState(true);
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
@@ -68,6 +69,7 @@ export default function UploadPage({ token }: { token: string }) {
     setTitle('');
     setArtist('');
     setAlbum('');
+    setIsPublic(true);
     setAudioFile(null);
     setCoverFile(null);
     setCoverPreview(null);
@@ -91,6 +93,7 @@ export default function UploadPage({ token }: { token: string }) {
       formData.append('title', title.trim());
       formData.append('artist', artist.trim());
       if (album.trim()) formData.append('album', album.trim());
+      formData.append('is_public', isPublic.toString());
       formData.append('audio', audioFile);
       formData.append('cover_image', coverFile);
 
@@ -256,6 +259,38 @@ export default function UploadPage({ token }: { token: string }) {
                 className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:bg-white"
               />
             </div>
+          </div>
+
+          {/* Public Track Toggle */}
+          <div className="flex items-center justify-between p-4 mb-6 bg-gray-50 rounded-xl border border-gray-200">
+            <div className="flex items-center gap-3">
+              {isPublic ? (
+                <div className="w-9 h-9 bg-green-100 rounded-lg flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-green-600" />
+                </div>
+              ) : (
+                <div className="w-9 h-9 bg-gray-200 rounded-lg flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-gray-500" />
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-medium text-gray-800">{isPublic ? 'Public Track' : 'Private Track'}</p>
+                <p className="text-xs text-gray-400">{isPublic ? 'ทุกคนสามารถเห็นและเล่นเพลงนี้ได้' : 'เฉพาะผู้อัปโหลดเท่านั้นที่เห็น'}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPublic(!isPublic)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                isPublic ? 'bg-purple-600' : 'bg-gray-300'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                  isPublic ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
 
           {/* Progress Bar */}

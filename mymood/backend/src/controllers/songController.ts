@@ -6,8 +6,16 @@ import * as mm from 'music-metadata';
 export const songController = {
   async getAllSongs(req: Request, res: Response) {
     try {
-      const data = await songService.getAllSongs();
-      res.status(200).json(data);
+      const sort = req.query.sort as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      if (sort === 'popular') {
+        const data = await songService.getPopularSongs(limit);
+        res.status(200).json(data);
+      } else {
+        const data = await songService.getAllSongs();
+        res.status(200).json(data);
+      }
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -43,8 +51,9 @@ export const songController = {
   async uploadSong(req: AuthRequest, res: Response) {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     try {
-      const { title, artist } = req.body;
+      const { title, artist, is_public } = req.body;
       const albumName = req.body.album || null;
+      const isPublic = is_public === 'false' ? false : true;
 
       if (!files || !files['audio']) {
         return res.status(400).json({ error: 'ไม่พบไฟล์เพลง กรุณาแนบไฟล์ .mp3 มาด้วยครับ' });
@@ -67,6 +76,7 @@ export const songController = {
         audioFile.path,
         coverImageFile.path,
         durationSeconds,
+        isPublic,
       );
 
       res.status(201).json({ message: 'อัปโหลดเพลง รูปปก และสร้าง AI Vector สำเร็จ!', song });

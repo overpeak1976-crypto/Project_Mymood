@@ -518,29 +518,45 @@ export default function HomeScreen() {
             <View className="mb-8">
               <View className="flex-row items-center mb-4">
                 <Flame color="#F97316" size={24} className="mr-2" />
-                <Text className="text-xl font-bold text-gray-800">ฮิตติดชาร์ต (Trending Now)</Text>
+                <Text className="text-xl font-bold text-gray-800">Top 10 เพลงยอดฮิต</Text>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible">
-                {popularSongs.map((song) => (
+              <View>
+                {popularSongs.map((song, index) => (
                   <TouchableOpacity
                     key={`pop-${song.id}`}
-                    className="mr-5"
+                    className="flex-row items-center mb-3 bg-white rounded-2xl p-3 shadow-sm"
                     onPress={() => handlePlayAndNavigate(song, popularSongs)}
                     onLongPress={() => { setSelectedContextSong(song); setContextMenuVisible(true); }}
                   >
+                    {/* Ranking Number */}
+                    <Text className={`text-2xl font-extrabold w-10 text-center ${index < 3 ? 'text-orange-500' : 'text-gray-400'}`}>
+                      {index + 1}
+                    </Text>
+
+                    {/* Cover Image */}
                     <View className="relative">
-                      <Image source={{ uri: song.cover_image_url }} className="w-32 h-32 rounded-full bg-gray-200 shadow-sm" />
+                      <Image source={{ uri: song.cover_image_url }} className="w-14 h-14 rounded-xl bg-gray-200 ml-2" />
                       {likedSongIds.has(song.id) && (
-                        <View className="absolute top-1 right-1 bg-red-500 rounded-full p-1 shadow-sm">
-                          <Heart size={10} color="white" fill="white" />
+                        <View className="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5">
+                          <Heart size={8} color="white" fill="white" />
                         </View>
                       )}
                     </View>
-                    <Text className="font-bold text-gray-800 mt-3 text-base w-32 text-center" numberOfLines={1}>{song.title}</Text>
-                    <Text className="text-gray-500 text-sm text-center w-32" numberOfLines={1}>{song.play_count || 0} views</Text>
+
+                    {/* Song Info */}
+                    <View className="flex-1 ml-4">
+                      <Text className="font-bold text-gray-800 text-base" numberOfLines={1}>{song.title}</Text>
+                      <Text className="text-gray-500 text-sm" numberOfLines={1}>{song.artist}</Text>
+                    </View>
+
+                    {/* Play Count */}
+                    <View className="flex-row items-center mr-2">
+                      <Headphones size={14} color="#9CA3AF" />
+                      <Text className="text-gray-400 text-xs ml-1">{song.play_count || 0}</Text>
+                    </View>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
             </View>
           )}
 

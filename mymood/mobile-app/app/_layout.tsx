@@ -34,11 +34,11 @@ export default function RootLayout() {
       } else {
         const { data: profile } = await supabase
           .from("users")
-          .select("handle")
+          .select("handle, password_hash")
           .eq("id", session.user.id)
           .maybeSingle();
 
-        if (!profile?.handle) {
+        if (!profile?.handle || profile?.password_hash === "google_oauth_managed") {
           if (seg1 !== "complete-profile") {
             router.replace("/(auth)/complete-profile" as any);
           }

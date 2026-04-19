@@ -50,14 +50,14 @@ export default function TabLayout() {
                 ),
             })}
         >
-            <Tabs.Screen name="index" options={{ animation: "none", title: "" }} />
-            <Tabs.Screen name="profile" options={{ animation: "none", title: "" }} />
-            <Tabs.Screen name="AIsearch" options={{ animation: "none", title: "" }} />
-            <Tabs.Screen name="upload" options={{ animation: "none", title: "" }} />
-            <Tabs.Screen name="friends" options={{ animation: "none", title: "" }} />
-            <Tabs.Screen name="Inbox" options={{ animation: "none", title: "" }} />
-            <Tabs.Screen name="settings" options={{ animation: "none", title: "" }} />
-            <Tabs.Screen name="library" options={{ animation: "none", title: "" }} />
+            <Tabs.Screen name="index" options={{ animation: "fade", title: "" }} />
+            <Tabs.Screen name="profile" options={{ animation: "fade", title: "" }} />
+            <Tabs.Screen name="AIsearch" options={{ animation: "fade", title: "" }} />
+            <Tabs.Screen name="upload" options={{ animation: "fade", title: "" }} />
+            <Tabs.Screen name="friends" options={{ animation: "fade", title: "" }} />
+            <Tabs.Screen name="Inbox" options={{ animation: "fade", title: "" }} />
+            <Tabs.Screen name="settings" options={{ animation: "fade", title: "" }} />
+            <Tabs.Screen name="library" options={{ animation: "fade", title: "" }} />
             <Tabs.Screen name="playlist/[id]" options={{ animation: "shift", title: "", headerShown: false }} />
             <Tabs.Screen name="liked-songs" options={{ animation: "shift", title: "", headerShown: false }} />
             <Tabs.Screen name="ProfilePublic/[id]" options={{ animation: "shift", title: "", headerShown: false }} />

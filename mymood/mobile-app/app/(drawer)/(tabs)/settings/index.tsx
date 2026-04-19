@@ -158,14 +158,14 @@ export default function SettingsIndex() {
                         ) : null}
                         <View
                             style={{
-                                backgroundColor: "#ffffff",
+                                backgroundColor: "#000000",
                                 paddingHorizontal: 8,
                                 paddingVertical: 4,
                                 borderRadius: 12,
                                 alignSelf: "flex-start",
                             }}
                         >
-                            <Text style={{ fontSize: 11, color: "#4c4c4c", fontWeight: "600" }}>
+                            <Text style={{ fontSize: 11, color: "#f5f5f5", fontWeight: "600" }}>
                                 {user?.is_online ? " ออนไลน์" : " ออฟไลน์"}
                             </Text>
                         </View>

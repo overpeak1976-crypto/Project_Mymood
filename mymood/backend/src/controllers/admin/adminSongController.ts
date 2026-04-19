@@ -41,7 +41,8 @@ export const adminSongController = {
   async uploadSong(req: AuthRequest, res: Response) {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     try {
-      const { title, artist, album } = req.body;
+      const { title, artist, album, is_public } = req.body;
+      const isPublic = is_public === 'false' ? false : true;
 
       if (!files || !files['audio']) {
         return res.status(400).json({ error: 'ไม่พบไฟล์เพลง กรุณาแนบไฟล์ .mp3' });
@@ -64,6 +65,7 @@ export const adminSongController = {
         audioFile.path,
         coverImageFile.path,
         durationSeconds,
+        isPublic,
       );
 
       res.status(201).json({ message: 'อัปโหลดเพลงสำเร็จ!', song });
